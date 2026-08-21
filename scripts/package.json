@@ -6,7 +6,8 @@
     "bake": "node bake_cloud_trail.mjs"
   },
   "dependencies": {
-    "@pixi-spine/runtime-4.1": "^4.0.6",
-    "canvas": "^2.11.2"
+    "@pixi-spine/base": "4.0.6",
+    "@pixi-spine/runtime-4.1": "4.0.6",
+    "canvas": "2.11.2"
   }
 }
