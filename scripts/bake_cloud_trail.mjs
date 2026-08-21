@@ -1,147 +1,174 @@
 /**
- * 云迹 Spine → 7 组 WebP 烘焙脚本
- * 运行：npm i @pixi-spine/runtime-4.1 canvas && node scripts/bake_cloud_trail.mjs
- * 输出：app/src/main/assets/pet/cloud_trail_Default.webp 等
+ * CloudTrail Spine → 7 WebP frames
+ * node scripts/bake_cloud_trail.mjs
+ *
+ * Dependencies: @pixi-spine/runtime-4.1, canvas
  */
 
-import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'fs';
+import { readFileSync, writeFileSync } from 'fs';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { createCanvas } from 'canvas';
+import { createCanvas, Image } from 'canvas';
 import * as Spine from '@pixi-spine/runtime-4.1';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const ASSETS_DIR = resolve(__dirname, '../app/src/main/assets/pet');
-const CLOUD_TRAIL_DIR = resolve(ASSETS_DIR, 'cloud_trail');
-const OUT_DIR = resolve(ASSETS_DIR);
+const ASSETS_DIR  = resolve(__dirname, '../app/src/main/assets/pet');
+const CLOUD_DIR   = resolve(ASSETS_DIR, 'cloud_trail');
+const OUT_DIR     = resolve(ASSETS_DIR);
+const ANIMS       = ['Default', 'Interact', 'Move', 'Relax', 'Sit', 'Sleep', 'Special'];
+const SIZE        = 512;
+const FRAME_COUNT = 10;
+const FPS         = 30;
 
-// 7 组标准动画名
-const ANIM_NAMES = ['Default', 'Interact', 'Move', 'Relax', 'Sit', 'Sleep', 'Special'];
-
-// Minimal GL wrapper compatible with SpineSpriteRenderer expectations
-class GLWrapper {
-    constructor(gl) {
-        this.gl = gl;
+// ── MiniAtlas: parse .atlas text format ─────────────────
+// atlasAttachmentLoader.findRegion() needs objects with:
+// { name, page, x, y, width, height, offsetX, offsetY,
+//   originalWidth, originalHeight, rotate, index }
+class MiniAtlas {
+    constructor(atlasText, pngBuf) {
+        this.pngBuf = pngBuf;
+        this._regions = new Map();
+        this.pw = 0;
+        this.ph = 0;
+        this._parse(atlasText);
     }
-    // Delegate all calls to the raw WebGL context
-    getContext() { return this.gl; }
-    // spine-webgl GL methods used by SpineSpriteRenderer
-    createShader(type, source) { return this.gl.createShader(type); }
-    compileShader(shader) { this.gl.compileShader(shader); }
-    getShaderParameter(shader, pname) { return this.gl.getShaderParameter(shader, pname); }
-    getShaderInfoLog(shader) { return this.gl.getShaderInfoLog(shader); }
-    createProgram() { return this.gl.createProgram(); }
-    attachShader(program, shader) { this.gl.attachShader(program, shader); }
-    linkProgram(program) { this.gl.linkProgram(program); }
-    getProgramParameter(program, pname) { return this.gl.getProgramParameter(program, pname); }
-    getProgramInfoLog(program) { return this.gl.getProgramInfoLog(program); }
-    useProgram(program) { this.gl.useProgram(program); }
-    createBuffer() { return this.gl.createBuffer(); }
-    bindBuffer(target, buffer) { this.gl.bindBuffer(target, buffer); }
-    bufferData(target, data, usage) { this.gl.bufferData(target, data, usage); }
-    enableVertexAttribArray(index) { this.gl.enableVertexAttribArray(index); }
-    vertexAttribPointer(index, size, type, normalized, stride, offset) {
-        this.gl.vertexAttribPointer(index, size, type, normalized, stride, offset);
+    _parse(text) {
+        const lines = text.split(/\r?\n/);
+        let i = 0;
+        while (i < lines.length) {
+            while (i < lines.length && lines[i].trim() === '') i++;
+            if (i >= lines.length) break;
+            i++;
+            const page = {};
+            while (i < lines.length && lines[i].trim() && !lines[i].startsWith('  ')) {
+                const [k, ...v] = lines[i].trim().split(':');
+                const n = v.join(':').trim().split(/\s+/).map(Number);
+                if (k === 'size' && n.length === 2) { page.w = n[0]; page.h = n[1]; }
+                i++;
+            }
+            i++;
+            this.pw = page.w;
+            this.ph = page.h;
+            while (i < lines.length && lines[i].startsWith('  ') && lines[i].trim()) {
+                const name = lines[i].trim();
+                i++;
+                const r = { name, page, x: 0, y: 0,
+                    w: 0, h: 0,
+                    ow: 0, oh: 0, ox: 0, oy: 0, ro: false };
+                while (i < lines.length && lines[i].startsWith('  ') && lines[i].trim()) {
+                    const [k, ...v] = lines[i].trim().split(':');
+                    const n = v.join(':').trim().split(/\s+/).map(Number);
+                    if      (k === 'xy')     { r.x = n[0]; r.y = n[1]; }
+                    else if (k === 'size')   { r.w = n[0]; r.h = n[1]; }
+                    else if (k === 'orig')   { r.ow = n[0]; r.oh = n[1]; }
+                    else if (k === 'offset') { r.ox = n[0]; r.oy = n[1]; }
+                    else if (k === 'rotate') { r.ro = n[0] !== 0; }
+                    i++;
+                }
+                if (r.ow === 0) { r.ow = r.w; r.oh = r.h; }
+                if (r.x !== 0 || r.y !== 0) this._regions.set(name, r);
+            }
+        }
     }
-    drawArrays(mode, first, count) { this.gl.drawArrays(mode, first, count); }
-    activeTexture(texture) { this.gl.activeTexture(texture); }
-    bindTexture(target, texture) { this.gl.bindTexture(target, texture); }
-    texImage2D(target, level, internalformat, format, type, pixels) {
-        this.gl.texImage2D(target, level, internalformat, format, type, pixels);
+    findRegion(name) {
+        const r = this._regions.get(name);
+        if (!r) return null;
+        return {
+            name,
+            page:              { width: r.pw, height: r.ph },
+            x: r.x,            y: r.y,
+            width: r.w,        height: r.h,
+            originalWidth:  r.ow, originalHeight:  r.oh,
+            offsetX: r.ox,     offsetY: r.oy,
+            rotate: r.ro ? 1 : 0,
+            index: -1,
+        };
     }
-    texParameteri(target, pname, param) { this.gl.texParameteri(target, pname, param); }
-    createTexture() { return this.gl.createTexture(); }
-    deleteTexture(texture) { this.gl.deleteTexture(texture); }
-    pixelStorei(pname, param) { this.gl.pixelStorei(pname, param); }
-    clearColor(r, g, b, a) { this.gl.clearColor(r, g, b, a); }
-    clear(mask) { this.gl.clear(mask); }
-    viewport(x, y, width, height) { this.gl.viewport(x, y, width, height); }
-    blendFunc(sfactor, dfactor) { this.gl.blendFunc(sfactor, dfactor); }
-    enable(cap) { this.gl.enable(cap); }
-    disable(cap) { this.gl.disable(cap); }
-    getUniformLocation(program, name) { return this.gl.getUniformLocation(program, name); }
-    uniform1i(location, v0) { this.gl.uniform1i(location, v0); }
-    uniformMatrix4fv(location, transpose, value) { this.gl.uniformMatrix4fv(location, transpose, value); }
-    getAttribLocation(program, name) { return this.gl.getAttribLocation(program, name); }
-    // Canvas wrapper methods
-    get canvas() { return this.gl.canvas; }
 }
 
+// ── Canvas2D renderer ────────────────────────────────────
+function render(ctx, skel, img) {
+    const slots = skel.slots || [];
+    for (const slot of slots) {
+        const att = slot.attachment;
+        if (!att || att.type !== 1 || !att.region) continue;
+        const bone = slot.bone;
+        const reg  = att.region;
+
+        const bw = bone.worldX, bh = bone.worldY;
+        const br = bone.worldRotation;
+        const sa = bone.worldScaleX, sb = bone.worldScaleY;
+        const ox = reg.offsetX || 0, oy = reg.offsetY || 0;
+        const ow = reg.originalWidth  || reg.width;
+        const oh = reg.originalHeight || reg.height;
+
+        ctx.save();
+        ctx.globalAlpha = (slot.color || {}).a !== undefined ? slot.color.a : 1;
+        ctx.translate(bw, bh);
+        ctx.rotate((br || 0) * Math.PI / 180);
+        ctx.scale(sa * (att.scaleX || 1), sb * (att.scaleY || 1));
+        ctx.drawImage(img, reg.x, reg.y, reg.width, reg.height, -ox, -oy, ow, oh);
+        ctx.restore();
+    }
+}
+
+// ── Main ─────────────────────────────────────────────────
 async function main() {
-    console.log('🎞️  云迹 Spine → WebP 烘焙开始');
+    console.log('🎬 CloudTrail bake 開始');
 
-    // 1. 读取 Spine 文件
-    const atlasText = readFileSync(resolve(CLOUD_TRAIL_DIR, 'build_char_4165_ctrail.atlas'), 'utf-8');
-    const skelBytes = readFileSync(resolve(CLOUD_TRAIL_DIR, 'build_char_4165_ctrail.skel'));
-    const pngBuf = readFileSync(resolve(CLOUD_TRAIL_DIR, 'build_char_4165_ctrail.png'));
+    const atlasText = readFileSync(resolve(CLOUD_DIR, 'build_char_4165_ctrail.atlas'), 'utf-8');
+    const skelBuf   = readFileSync(resolve(CLOUD_DIR, 'build_char_4165_ctrail.skel'));
+    const pngBuf    = readFileSync(resolve(CLOUD_DIR, 'build_char_4165_ctrail.png'));
 
-    // 2. 创建 Spine 实例
-    const atlas = new Spine.Atlas(atlasText, (path) => pngBuf);
-    const atlasLoader = new Spine.AtlasAttachmentLoader(atlas);
-    const skeletonJson = new Spine.SkeletonJson(atlasLoader);
-    const skeletonData = skeletonJson.readSkeletonData(new Spine.ByteArrayInputStream(skelBytes));
+    const atlas  = new MiniAtlas(atlasText, pngBuf);
+    const loader = new Spine.AtlasAttachmentLoader(atlas);
 
-    // 3. 创建 WebGL 上下文（离屏 canvas）
-    const canvas = createCanvas(512, 512);
-    const gl = canvas.getContext('webgl2', { alpha: true, preserveDrawingBuffer: true });
-    if (!gl) throw new Error('WebGL2 不可用');
-    const spineGL = new GLWrapper(gl);
-
-    // 4. 遍历动画烘焙
-    for (const animName of ANIM_NAMES) {
-        const anim = skeletonData.findAnimation(animName);
-        if (!anim) {
-            console.log(`⚠️  动画 ${animName} 不存在，跳过`);
-            continue;
-        }
-        console.log(`🔄 烘焙 ${animName} (${anim.duration.toFixed(2)}s)...`);
-
-        const skeleton = new Spine.Skeleton(skeletonData);
-        skeleton.setToSetupPose();
-        skeleton.updateWorldTransform();
-
-        const state = new Spine.AnimationState(new Spine.AnimationStateData(skeletonData));
-        state.setAnimation(0, animName, true);
-
-        const frames = [];
-        const fps = 30;
-        const frameTime = 1 / fps;
-        let elapsed = 0;
-        const duration = anim.duration;
-
-        while (elapsed < duration + 0.01) { // 多跑一帧确保循环
-            state.update(frameTime);
-            state.apply(skeleton);
-            skeleton.updateWorldTransform();
-
-            // 渲染
-            gl.clearColor(0, 0, 0, 0);
-            gl.clear(gl.COLOR_BUFFER_BIT);
-            const renderer = new Spine.SpineSpriteRenderer(spineGL);
-            renderer.draw(skeleton);
-
-            // 读取像素
-            const pixels = new Uint8Array(512 * 512 * 4);
-            gl.readPixels(0, 0, 512, 512, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
-            frames.push(Buffer.from(pixels));
-            elapsed += frameTime;
-        }
-
-        // 5. 写 WebP（使用 canvas 编码）
-        const webpCanvas = createCanvas(512, 512);
-        const ctx = webpCanvas.getContext('2d');
-        const frameBuf = frames[0]; // 只取第一帧做静态预览，动画 WebP 需额外库
-        const imgData = ctx.createImageData(512, 512);
-        imgData.data.set(new Uint8ClampedArray(frameBuf));
-        ctx.putImageData(imgData, 0, 0);
-
-        const outPath = resolve(OUT_DIR, `cloud_trail_${animName}.webp`);
-        const webpBuf = webpCanvas.toBuffer('image/webp', { quality: 0.85 });
-        writeFileSync(outPath, webpBuf);
-        console.log(`✅ ${outPath} (${(webpBuf.length/1024).toFixed(1)}KB)`);
+    let data;
+    try {
+        data = new Spine.SkeletonBinary(loader)
+            .readSkeletonData(new Spine.BinaryInput(skelBuf));
+    } catch (e) {
+        console.log('  二進位解析失敗，嘗試 JSON...');
+        data = new Spine.SkeletonJson(loader)
+            .readSkeletonData(skelBuf.toString('utf-8'));
     }
 
-    console.log('🎉 云迹烘焙完成');
+    const found = data.animations.filter(a => ANIMS.includes(a.name));
+    console.log(`  動畫: ${found.map(a => `${a.name}@${a.duration.toFixed(1)}s`).join(', ')}`);
+
+    const img = new Image();
+    img.src = pngBuf;
+    await new Promise(r => { img.onload = r; img.onerror = () => {}; });
+
+    const dt = 1 / FPS;
+    for (const name of ANIMS) {
+        const anim = data.animations.find(a => a.name === name);
+        if (!anim) { console.log(`  ⚠️  ${name} 缺失`); continue; }
+
+        const cvs = createCanvas(SIZE, SIZE);
+        const ctx = cvs.getContext('2d');
+        ctx.clearRect(0, 0, SIZE, SIZE);
+
+        const skel  = new Spine.Skeleton(data);
+        const state = new Spine.AnimationState(new Spine.AnimationStateData(data));
+        skel.setToSetupPose();
+        skel.updateWorldTransform();
+        state.setAnimation(0, name, true);
+
+        let t = 0;
+        for (let f = 0; f < FRAME_COUNT && t < anim.duration; f++, t += dt) {
+            state.update(dt);
+            state.apply(skel);
+            skel.updateWorldTransform();
+            render(ctx, skel, img);
+        }
+
+        const buf = cvs.toBuffer('image/webp', { quality: 0.92 });
+        const out = resolve(OUT_DIR, `cloud_trail_${name}.webp`);
+        writeFileSync(out, buf);
+        console.log(`  ✅ ${name}: ${(buf.length / 1024).toFixed(1)}KB`);
+    }
+    console.log('🎉 bake 完畢');
 }
 
-main().catch(e => { console.error(e); process.exit(1); });
+main().catch(e => { console.error('❌', e); process.exit(1); });
