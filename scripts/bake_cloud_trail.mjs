@@ -125,12 +125,11 @@ async function main() {
 
     let data;
     try {
-        data = new Spine.SkeletonBinary(loader)
-            .readSkeletonData(new Spine.BinaryInput(skelBuf));
+        const bin = new Spine.SkeletonBinary(loader);
+        data = bin.readSkeletonData(skelBuf);
     } catch (e) {
-        console.log('  二進位解析失敗，嘗試 JSON...');
-        data = new Spine.SkeletonJson(loader)
-            .readSkeletonData(skelBuf.toString('utf-8'));
+        console.error('  二進位解析失敗:', e.message);
+        process.exit(1);
     }
 
     const found = data.animations.filter(a => ANIMS.includes(a.name));
