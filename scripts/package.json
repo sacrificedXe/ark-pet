@@ -1,0 +1,13 @@
+{
+  "name": "arkpet-spine-bake",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "bake": "node bake_cloud_trail.mjs"
+  },
+  "dependencies": {
+    "@pixi-spine/runtime-4.1": "^4.1.0",
+    "spine-webgl": "^2.0.0",
+    "canvas": "^2.11.2"
+  }
+}

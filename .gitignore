@@ -1,0 +1,22 @@
+# Gradle
+.gradle/
+build/
+*.iml
+
+# Local config
+local.properties
+gradle.properties
+
+# IDE
+.idea/
+*.iml
+
+# OS
+.DS_Store
+
+# Build outputs
+*.apk
+*.aab
+
+# Cache
+.gradle/wrapper/dists/
