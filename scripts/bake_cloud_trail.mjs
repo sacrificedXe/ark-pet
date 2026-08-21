@@ -9,7 +9,7 @@ import { readFileSync, writeFileSync } from 'fs';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { createCanvas, Image } from 'canvas';
-import * as Spine from '@pixi-spine/runtime-4.1';
+import * as Spine from '@pixi-spine/runtime-3.8';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ASSETS_DIR  = resolve(__dirname, '../app/src/main/assets/pet');
