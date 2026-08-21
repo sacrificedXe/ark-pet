@@ -11,7 +11,7 @@ import { createCanvas } from 'canvas';
 import * as Spine from '@pixi-spine/runtime-4.1';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const ASSETS_DIR = resolve(__dirname, '../../app/src/main/assets/pet');
+const ASSETS_DIR = resolve(__dirname, '../app/src/main/assets/pet');
 const CLOUD_TRAIL_DIR = resolve(ASSETS_DIR, 'cloud_trail');
 const OUT_DIR = resolve(ASSETS_DIR);
 
