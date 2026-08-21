@@ -16,11 +16,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup JDK 17
+      - name: Setup JDK 21
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: 17
+          java-version: 21
           cache: gradle
 
       - name: Setup Android SDK
@@ -28,24 +28,23 @@ jobs:
         with:
           api-level: 34
           ndk-version: r26c
-          build-tools: 34.0.0
-          cmdline-tools: latest
+          cmdline-tools-version: latest
+          build-tools-version: 34.0.0
 
-      - name: Setup Node.js (for Spine bake)
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
+          cache-dependency-path: scripts/package-lock.json
 
       - name: Install Spine bake deps
-        run: |
-          cd ${{ github.workspace }}
-          npm ci --prefix scripts 2>/dev/null || npm install @pixi-spine/runtime-4.1 spine-webgl canvas --prefix scripts
+        working-directory: scripts
+        run: npm ci
 
       - name: Bake 云迹 Spine → WebP
-        run: |
-          cd ${{ github.workspace }}
-          node scripts/bake_cloud_trail.mjs
+        working-directory: scripts
+        run: node bake_cloud_trail.mjs
 
       - name: Verify WebP outputs
         run: |
@@ -53,7 +52,6 @@ jobs:
 
       - name: Build Debug APK
         run: |
-          cd ${{ github.workspace }}
           chmod +x gradlew
           ./gradlew assembleDebug --no-daemon --stacktrace
 
