@@ -71,7 +71,7 @@ class MainActivity : AppCompatActivity() {
         spSkin.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
             override fun onItemSelected(parent: android.widget.AdapterView<*>, view: android.view.View?, position: Int, id: Long) {
                 if (!skinReady) { skinReady = true; return }
-                val role = RoleRegistry.byId(sp.getString("role_id", RoleRegistry.roles.first().id)) ?: RoleRegistry.roles.first()
+                val role = RoleRegistry.byId(sp.getString("role_id", RoleRegistry.roles.first().id) ?: "") ?: RoleRegistry.roles.first()
                 val skin = role.skins[position]
                 sp.edit().putString("skin_id", skin.id).apply()
                 PetOverlayService.instance?.setSkin(skin.id)
@@ -102,7 +102,7 @@ class MainActivity : AppCompatActivity() {
         swBehavior.isChecked = sp.getBoolean("behavior_enabled", true)
         swBehavior.setOnCheckedChangeListener { _, v ->
             sp.edit().putBoolean("behavior_enabled", v).apply()
-            PetOverlayService.instance?.run { behaviorEnabled = v }
+            PetOverlayService.instance?.setBehaviorEnabled(v)
         }
 
         // 检查更新

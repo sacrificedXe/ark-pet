@@ -105,10 +105,10 @@ class PetOverlayService : Service() {
 
     private fun sp() = getSharedPreferences("arkpet", MODE_PRIVATE)
     private fun loadPrefs() {
-        currentRole = RoleRegistry.byId(sp().getString("role_id", currentRole.id)) ?: currentRole
-        currentSkin = currentRole.skins.find { it.id == sp().getString("skin_id", currentSkin.id) }
+        currentRole = RoleRegistry.byId(sp().getString("role_id", currentRole.id) ?: "") ?: currentRole
+        currentSkin = currentRole.skins.find { it.id == (sp().getString("skin_id", currentSkin.id) ?: "") }
             ?: currentRole.defaultSkin()
-        anim = sp().getString("current_anim", "Relax")
+        anim = sp().getString("current_anim", "Relax") ?: "Relax"
         behaviorEnabled = sp().getBoolean("behavior_enabled", true)
     }
     private fun savePrefs() {
@@ -122,9 +122,9 @@ class PetOverlayService : Service() {
     }
 
     private fun startForegroundCompat() {
-        val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        val nm = getSystemService(Context.NOTIFICATION_SERVICE) as android.app.NotificationManager
         if (Build.VERSION.SDK_INT >= 26)
-            nm.createNotificationChannel(NotificationChannel(CHANNEL_ID, "桌宠", NotificationManager.IMPORTANCE_LOW))
+            nm.createNotificationChannel(android.app.NotificationChannel(CHANNEL_ID, "桌宠", android.app.NotificationManager.IMPORTANCE_LOW))
         val n = Notification.Builder(this, CHANNEL_ID)
             .setContentTitle("初雪桌宠运行中")
             .setContentText("点击弹出消息输入框")
@@ -171,7 +171,7 @@ class PetOverlayService : Service() {
                 }
                 MotionEvent.ACTION_UP -> {
                     val dt = System.currentTimeMillis() - lastTouchTime
-                    val moved = Math.hypot(ev.rawX - touchStartX, ev.rawY - touchStartY)
+                    val moved = hypot(ev.rawX - touchStartX, ev.rawY - touchStartY)
                     wsClient?.reportTouch(ev.rawX, ev.rawY, ev.actionMasked, dt)
                     if (moved > 20f) {
                         overlayParams?.let {
@@ -223,6 +223,11 @@ class PetOverlayService : Service() {
     fun setBehaviorEnabled(v: Boolean) {
         behaviorEnabled = v
         savePrefs()
+    }
+
+    fun showBubble(text: String) {
+        // 复用旧逻辑：用 toast 或悬浮窗显示气泡（临时需求，后续可替换为气泡 View）
+        toast(text.take(50))
     }
 
     private fun startBehaviorLoop() {
@@ -298,29 +303,8 @@ class PetOverlayService : Service() {
         val intent = Intent(Intent.ACTION_GET_CONTENT).apply {
             type = "*/*"; addCategory(Intent.CATEGORY_OPENABLE)
         }
-        try { startActivityForResult(intent, 0x1001) }
+        try { startActivity(intent) }
         catch (_: ActivityNotFoundException) { toast("没有可用的文件选择器") }
-    }
-
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode == 0x1001 && resultCode == RESULT_OK && data?.data != null) uploadSelectedFile(data.data!!)
-    }
-
-    private fun uploadSelectedFile(uri: Uri) {
-        runCatching {
-            val cursor = contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME, android.provider.OpenableColumns.SIZE), null, null, null)
-            var name = uri.lastPathSegment ?: "file"
-            var size = -1L
-            cursor?.use { if (it.moveToFirst()) { name = it.getString(0) ?: name; size = it.getLong(1) } }
-            val dest = File(cacheDir, "shared/$name"); dest.parentFile?.mkdirs()
-            contentResolver.openInputStream(uri)?.use { input -> dest.outputStream().use { output -> input.copyTo(output) } }
-            wsClient?.reportChatFile(name, size, dest.absolutePath)
-            toast("已发送: $name")
-        }.onFailure { e ->
-            Log.w("ArkPet", "file upload failed", e)
-            wsClient?.reportChatFile(name = uri.lastPathSegment ?: "unknown", size = -1, localPath = uri.toString())
-        }
     }
 
     private val mainHandler = Handler(Looper.getMainLooper())

@@ -104,6 +104,7 @@ class WsClient(private val ctx: Context, private val serverUrl: String) {
                 "set_skin" -> actSetSkin(params)
                 "show_chat" -> actShowChat()
                 "hide_chat" -> actHideChat()
+                "say" -> actSay(params)
                 else -> JSONObject().put("status", "error").put("error", "unknown_action:$action")
             }
         } catch (e: Exception) {
