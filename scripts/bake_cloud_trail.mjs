@@ -40,27 +40,32 @@ class MiniAtlas {
             while (i < lines.length && lines[i].trim() === '') i++;
             if (i >= lines.length) break;
 
-            // page name (png filename) - not indented
+            // page name (png filename) - not indented, no colon
             i++;
 
-            // page properties (size, format, filter, repeat) - not indented
+            // page properties (size, format, filter, repeat) - not indented, HAVE colon
             const page = {};
             while (i < lines.length && lines[i].trim() && !lines[i].startsWith('  ')) {
-                const [k, ...v] = lines[i].trim().split(':');
-                const n = v.join(':').trim().split(/\s+/).map(Number);
-                if (k === 'size' && n.length === 2) { page.w = n[0]; page.h = n[1]; }
+                if (lines[i].includes(':')) {
+                    const [k, ...v] = lines[i].trim().split(':');
+                    const n = v.join(':').trim().split(/\s+/).map(Number);
+                    if (k === 'size' && n.length === 2) { page.w = n[0]; page.h = n[1]; }
+                } else {
+                    // region name starts here (no colon)
+                    break;
+                }
                 i++;
             }
 
-            // skip empty line after page properties
+            // skip empty lines
             while (i < lines.length && lines[i].trim() === '') i++;
             if (i >= lines.length) break;
 
             this.pw = page.w;
             this.ph = page.h;
 
-            // regions: name NOT indented, properties indented with 2 spaces
-            while (i < lines.length && lines[i].trim() && !lines[i].startsWith('  ')) {
+            // regions: name NOT indented, NO colon; properties indented with 2 spaces
+            while (i < lines.length && lines[i].trim() && !lines[i].startsWith('  ') && !lines[i].includes(':')) {
                 const name = lines[i].trim();
                 i++;
 
