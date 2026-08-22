@@ -9,6 +9,7 @@ import android.content.Intent
 import android.graphics.PixelFormat
 import android.net.Uri
 import android.os.Build
+import kotlin.math.hypot
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
