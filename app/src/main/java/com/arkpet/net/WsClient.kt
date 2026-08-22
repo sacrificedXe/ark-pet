@@ -113,10 +113,10 @@ class WsClient(private val ctx: Context, private val serverUrl: String) {
     }
 
     private fun actAnimate(p: JSONObject) = act { PetOverlayService.instance?.playAnimation(
-        p.optString("anim", currentAnim), p.optDouble("speed", 1.0), p.optBoolean("loop", true), p.optBoolean("flipX", false)) }; ok()
-    private fun actSay(p: JSONObject) = act { PetOverlayService.instance?.showBubble(p.optString("text")) }; ok()
+        p.optString("anim", currentAnim), p.optDouble("speed", 1.0), p.optBoolean("loop", true), p.optBoolean("flipX", false)) }
+    private fun actSay(p: JSONObject) = act { PetOverlayService.instance?.showBubble(p.optString("text")) }
     private fun actWalkTo(p: JSONObject) = act { PetOverlayService.instance?.walkTo(
-        p.optInt("x"), p.optInt("y"), p.optLong("duration", 1500L)) { ok() } }; ok()
+        p.optInt("x"), p.optInt("y"), p.optLong("duration", 1500L)) { ok() } }
     private fun actTap(p: JSONObject) = touch.tap(p)
     private fun actLongPress(p: JSONObject) = touch.longPress(p)
     private fun actSwipe(p: JSONObject) = touch.swipe(p)
@@ -133,10 +133,10 @@ class WsClient(private val ctx: Context, private val serverUrl: String) {
             flipX = p.optBoolean("flipX", transform.flipX),
             visible = p.optBoolean("visible", transform.visible)
         ); transform = newT; PetOverlayService.instance?.applyTransform(newT)
-    }; sendSense(JSONObject().put("type", "transform").put("data", transformToJson())); ok()
-    private fun actSetSkin(p: JSONObject) = act { PetOverlayService.instance?.setSkin(p.optString("skin")) }; ok()
-    private fun actShowChat() = act { PetOverlayService.instance?.showChatInput() }; ok()
-    private fun actHideChat() = act { PetOverlayService.instance?.hideChatInput() }; ok()
+    }; sendSense(JSONObject().put("type", "transform").put("data", transformToJson()))
+    private fun actSetSkin(p: JSONObject) = act { PetOverlayService.instance?.setSkin(p.optString("skin")) }
+    private fun actShowChat() = act { PetOverlayService.instance?.showChatInput() }
+    private fun actHideChat() = act { PetOverlayService.instance?.hideChatInput() }
 
     private fun dispatchLegacy(ws: WebSocket, cmd: JSONObject) {
         val id = cmd.optString("id")
