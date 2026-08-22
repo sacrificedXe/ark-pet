@@ -23,6 +23,16 @@ jobs:
           java-version: '21'
           cache: gradle
 
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          cmdline-tools-version: latest
+          accept-android-sdk-licenses: true
+          packages: |
+            platforms;android-34
+            build-tools;34.0.0
+            platform-tools
+
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
