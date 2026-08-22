@@ -45,7 +45,7 @@ jobs:
 
       - name: Install Spine bake deps
         working-directory: scripts
-        run: npm ci
+        run: npm install
 
       - name: Bake 云迹 Spine → WebP
         working-directory: scripts
