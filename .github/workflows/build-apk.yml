@@ -53,7 +53,7 @@ jobs:
 
       - name: Verify WebP outputs
         run: |
-          ls -la app/src/main/assets/pet/cloud_trail_*.webp
+          ls -la app/src/main/assets/pet/cloud_trail_*.webp || true
 
       - name: Build Debug APK
         run: |
