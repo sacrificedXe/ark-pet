@@ -36,9 +36,14 @@ class MiniAtlas {
         const lines = text.split(/\r?\n/);
         let i = 0;
         while (i < lines.length) {
+            // skip empty lines
             while (i < lines.length && lines[i].trim() === '') i++;
             if (i >= lines.length) break;
+
+            // page name (png filename) - not indented
             i++;
+
+            // page properties (size, format, filter, repeat) - not indented
             const page = {};
             while (i < lines.length && lines[i].trim() && !lines[i].startsWith('  ')) {
                 const [k, ...v] = lines[i].trim().split(':');
@@ -46,15 +51,24 @@ class MiniAtlas {
                 if (k === 'size' && n.length === 2) { page.w = n[0]; page.h = n[1]; }
                 i++;
             }
-            i++;
+
+            // skip empty line after page properties
+            while (i < lines.length && lines[i].trim() === '') i++;
+            if (i >= lines.length) break;
+
             this.pw = page.w;
             this.ph = page.h;
-            while (i < lines.length && lines[i].startsWith('  ') && lines[i].trim()) {
+
+            // regions: name NOT indented, properties indented with 2 spaces
+            while (i < lines.length && lines[i].trim() && !lines[i].startsWith('  ')) {
                 const name = lines[i].trim();
                 i++;
+
                 const r = { name, page, x: 0, y: 0,
                     w: 0, h: 0,
                     ow: 0, oh: 0, ox: 0, oy: 0, ro: false };
+
+                // region properties (indented)
                 while (i < lines.length && lines[i].startsWith('  ') && lines[i].trim()) {
                     const [k, ...v] = lines[i].trim().split(':');
                     const n = v.join(':').trim().split(/\s+/).map(Number);
@@ -65,8 +79,12 @@ class MiniAtlas {
                     else if (k === 'rotate') { r.ro = n[0] !== 0; }
                     i++;
                 }
+
                 if (r.ow === 0) { r.ow = r.w; r.oh = r.h; }
-                if (r.x !== 0 || r.y !== 0) this._regions.set(name, r);
+                this._regions.set(name, r);
+
+                // skip empty lines between regions
+                while (i < lines.length && lines[i].trim() === '') i++;
             }
         }
     }
