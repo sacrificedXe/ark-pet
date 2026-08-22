@@ -1,0 +1,30 @@
+[
+    {
+        "merged": "com.arkpet.app-merged_res-4:/xml_accessibility_config.xml.flat",
+        "source": "com.arkpet.app-main-6:/xml/accessibility_config.xml"
+    },
+    {
+        "merged": "com.arkpet.app-merged_res-4:/layout_activity_main.xml.flat",
+        "source": "com.arkpet.app-main-6:/layout/activity_main.xml"
+    },
+    {
+        "merged": "com.arkpet.app-merged_res-4:/mipmap-anydpi-v26_ic_launcher.xml.flat",
+        "source": "com.arkpet.app-main-6:/mipmap-anydpi-v26/ic_launcher.xml"
+    },
+    {
+        "merged": "com.arkpet.app-merged_res-4:/drawable_ic_launcher.xml.flat",
+        "source": "com.arkpet.app-main-6:/drawable/ic_launcher.xml"
+    },
+    {
+        "merged": "com.arkpet.app-merged_res-4:/drawable_ic_launcher_foreground.xml.flat",
+        "source": "com.arkpet.app-main-6:/drawable/ic_launcher_foreground.xml"
+    },
+    {
+        "merged": "com.arkpet.app-merged_res-4:/xml_file_paths.xml.flat",
+        "source": "com.arkpet.app-main-6:/xml/file_paths.xml"
+    },
+    {
+        "merged": "com.arkpet.app-merged_res-4:/layout_overlay_pet.xml.flat",
+        "source": "com.arkpet.app-main-6:/layout/overlay_pet.xml"
+    }
+]

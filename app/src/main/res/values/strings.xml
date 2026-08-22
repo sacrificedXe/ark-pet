@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">初雪桌宠</string>
+    <string name="accessibility_desc">初雪桌宠无障碍服务：用于执行点击、滑动、输入等自动操作（MCP 引擎）</string>
+</resources>

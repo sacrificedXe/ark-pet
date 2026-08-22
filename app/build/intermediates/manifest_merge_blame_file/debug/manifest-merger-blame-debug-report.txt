@@ -1,0 +1,189 @@
+1<?xml version="1.0" encoding="utf-8"?>
+2<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+3    package="com.arkpet"
+4    android:versionCode="2"
+5    android:versionName="0.2.0" >
+6
+7    <uses-sdk
+8        android:minSdkVersion="28"
+9        android:targetSdkVersion="28" />
+10
+11    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+11-->/AstrBot/data/workspaces/_FriendMessage_3341808826/ark-pet/app/src/main/AndroidManifest.xml:4:5-78
+11-->/AstrBot/data/workspaces/_FriendMessage_3341808826/ark-pet/app/src/main/AndroidManifest.xml:4:22-75
+12    <uses-permission
+12-->/AstrBot/data/workspaces/_FriendMessage_3341808826/ark-pet/app/src/main/AndroidManifest.xml:5:5-120
+13        android:name="android.permission.FOREGROUND_SERVICE"
+13-->/AstrBot/data/workspaces/_FriendMessage_3341808826/ark-pet/app/src/main/AndroidManifest.xml:5:22-74
+14        android:foregroundServiceType="specialUse" />
+14-->/AstrBot/data/workspaces/_FriendMessage_3341808826/ark-pet/app/src/main/AndroidManifest.xml:5:75-117
+15    <uses-permission android:name="android.permission.CAMERA" />
+15-->/AstrBot/data/workspaces/_FriendMessage_3341808826/ark-pet/app/src/main/AndroidManifest.xml:6:5-65
+15-->/AstrBot/data/workspaces/_FriendMessage_3341808826/ark-pet/app/src/main/AndroidManifest.xml:6:22-62
+16    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+16-->/AstrBot/data/workspaces/_FriendMessage_3341808826/ark-pet/app/src/main/AndroidManifest.xml:7:5-80
+16-->/AstrBot/data/workspaces/_FriendMessage_3341808826/ark-pet/app/src/main/AndroidManifest.xml:7:22-77
+17    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+17-->/AstrBot/data/workspaces/_FriendMessage_3341808826/ark-pet/app/src/main/AndroidManifest.xml:8:5-81
+17-->/AstrBot/data/workspaces/_FriendMessage_3341808826/ark-pet/app/src/main/AndroidManifest.xml:8:22-78
+18    <uses-permission android:name="android.permission.INTERNET" />
+18-->/AstrBot/data/workspaces/_FriendMessage_3341808826/ark-pet/app/src/main/AndroidManifest.xml:9:5-67
+18-->/AstrBot/data/workspaces/_FriendMessage_3341808826/ark-pet/app/src/main/AndroidManifest.xml:9:22-64
+19    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+19-->/AstrBot/data/workspaces/_FriendMessage_3341808826/ark-pet/app/src/main/AndroidManifest.xml:10:5-79
+19-->/AstrBot/data/workspaces/_FriendMessage_3341808826/ark-pet/app/src/main/AndroidManifest.xml:10:22-76
+20    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+20-->/AstrBot/data/workspaces/_FriendMessage_3341808826/ark-pet/app/src/main/AndroidManifest.xml:11:5-81
+20-->/AstrBot/data/workspaces/_FriendMessage_3341808826/ark-pet/app/src/main/AndroidManifest.xml:11:22-78
+21    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+21-->/AstrBot/data/workspaces/_FriendMessage_3341808826/ark-pet/app/src/main/AndroidManifest.xml:12:5-83
+21-->/AstrBot/data/workspaces/_FriendMessage_3341808826/ark-pet/app/src/main/AndroidManifest.xml:12:22-80
+22    <uses-permission android:name="moe.shizuku.privileged.permission.API_V23" />
+22-->/AstrBot/data/workspaces/_FriendMessage_3341808826/ark-pet/app/src/main/AndroidManifest.xml:13:5-81
+22-->/AstrBot/data/workspaces/_FriendMessage_3341808826/ark-pet/app/src/main/AndroidManifest.xml:13:22-78
+23
+24    <permission
+24-->[androidx.core:core:1.12.0] /root/.gradle/caches/transforms-4/ea3df0294d03aef598c6eca03c452a36/transformed/core-1.12.0/AndroidManifest.xml:22:5-24:47
+25        android:name="com.arkpet.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
+25-->[androidx.core:core:1.12.0] /root/.gradle/caches/transforms-4/ea3df0294d03aef598c6eca03c452a36/transformed/core-1.12.0/AndroidManifest.xml:23:9-81
+26        android:protectionLevel="signature" />
+26-->[androidx.core:core:1.12.0] /root/.gradle/caches/transforms-4/ea3df0294d03aef598c6eca03c452a36/transformed/core-1.12.0/AndroidManifest.xml:24:9-44
+27
+28    <uses-permission android:name="com.arkpet.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION" />
+28-->[androidx.core:core:1.12.0] /root/.gradle/caches/transforms-4/ea3df0294d03aef598c6eca03c452a36/transformed/core-1.12.0/AndroidManifest.xml:26:5-97
+28-->[androidx.core:core:1.12.0] /root/.gradle/caches/transforms-4/ea3df0294d03aef598c6eca03c452a36/transformed/core-1.12.0/AndroidManifest.xml:26:22-94
+29
+30    <application
+30-->/AstrBot/data/workspaces/_FriendMessage_3341808826/ark-pet/app/src/main/AndroidManifest.xml:15:5-74:19
+31        android:name="com.arkpet.App"
+31-->/AstrBot/data/workspaces/_FriendMessage_3341808826/ark-pet/app/src/main/AndroidManifest.xml:16:9-28
+32        android:appComponentFactory="androidx.core.app.CoreComponentFactory"
+32-->[androidx.core:core:1.12.0] /root/.gradle/caches/transforms-4/ea3df0294d03aef598c6eca03c452a36/transformed/core-1.12.0/AndroidManifest.xml:28:18-86
+33        android:debuggable="true"
+34        android:extractNativeLibs="false"
+35        android:icon="@drawable/ic_launcher"
+35-->/AstrBot/data/workspaces/_FriendMessage_3341808826/ark-pet/app/src/main/AndroidManifest.xml:18:9-45
+36        android:label="初雪桌宠"
+36-->/AstrBot/data/workspaces/_FriendMessage_3341808826/ark-pet/app/src/main/AndroidManifest.xml:17:9-29
+37        android:theme="@style/Theme.AppCompat.DayNight" >
+37-->/AstrBot/data/workspaces/_FriendMessage_3341808826/ark-pet/app/src/main/AndroidManifest.xml:19:9-56
+38        <service
+38-->/AstrBot/data/workspaces/_FriendMessage_3341808826/ark-pet/app/src/main/AndroidManifest.xml:21:9-24:42
+39            android:name="moe.shizuku.api.ShizukuBinderWrapperService"
+39-->/AstrBot/data/workspaces/_FriendMessage_3341808826/ark-pet/app/src/main/AndroidManifest.xml:22:13-71
+40            android:permission="android.permission.INTERACT_ACROSS_USERS_FULL"
+40-->/AstrBot/data/workspaces/_FriendMessage_3341808826/ark-pet/app/src/main/AndroidManifest.xml:23:13-79
+41            android:process=":shizuku" />
+41-->/AstrBot/data/workspaces/_FriendMessage_3341808826/ark-pet/app/src/main/AndroidManifest.xml:24:13-39
+42        <service
+42-->/AstrBot/data/workspaces/_FriendMessage_3341808826/ark-pet/app/src/main/AndroidManifest.xml:26:9-29:42
+43            android:name="moe.shizuku.api.ShizukuService"
+43-->/AstrBot/data/workspaces/_FriendMessage_3341808826/ark-pet/app/src/main/AndroidManifest.xml:27:13-58
+44            android:permission="android.permission.INTERACT_ACROSS_USERS_FULL"
+44-->/AstrBot/data/workspaces/_FriendMessage_3341808826/ark-pet/app/src/main/AndroidManifest.xml:28:13-79
+45            android:process=":shizuku" />
+45-->/AstrBot/data/workspaces/_FriendMessage_3341808826/ark-pet/app/src/main/AndroidManifest.xml:29:13-39
+46
+47        <activity
+47-->/AstrBot/data/workspaces/_FriendMessage_3341808826/ark-pet/app/src/main/AndroidManifest.xml:31:9-38:20
+48            android:name="com.arkpet.MainActivity"
+48-->/AstrBot/data/workspaces/_FriendMessage_3341808826/ark-pet/app/src/main/AndroidManifest.xml:32:13-41
+49            android:exported="true" >
+49-->/AstrBot/data/workspaces/_FriendMessage_3341808826/ark-pet/app/src/main/AndroidManifest.xml:33:13-36
+50            <intent-filter>
+50-->/AstrBot/data/workspaces/_FriendMessage_3341808826/ark-pet/app/src/main/AndroidManifest.xml:34:13-37:29
+51                <action android:name="android.intent.action.MAIN" />
+51-->/AstrBot/data/workspaces/_FriendMessage_3341808826/ark-pet/app/src/main/AndroidManifest.xml:35:17-69
+51-->/AstrBot/data/workspaces/_FriendMessage_3341808826/ark-pet/app/src/main/AndroidManifest.xml:35:25-66
+52
+53                <category android:name="android.intent.category.LAUNCHER" />
+53-->/AstrBot/data/workspaces/_FriendMessage_3341808826/ark-pet/app/src/main/AndroidManifest.xml:36:17-77
+53-->/AstrBot/data/workspaces/_FriendMessage_3341808826/ark-pet/app/src/main/AndroidManifest.xml:36:27-74
+54            </intent-filter>
+55        </activity>
+56
+57        <service
+57-->/AstrBot/data/workspaces/_FriendMessage_3341808826/ark-pet/app/src/main/AndroidManifest.xml:40:9-42:40
+58            android:name="com.arkpet.overlay.PetOverlayService"
+58-->/AstrBot/data/workspaces/_FriendMessage_3341808826/ark-pet/app/src/main/AndroidManifest.xml:41:13-54
+59            android:exported="false" />
+59-->/AstrBot/data/workspaces/_FriendMessage_3341808826/ark-pet/app/src/main/AndroidManifest.xml:42:13-37
+60        <service
+60-->/AstrBot/data/workspaces/_FriendMessage_3341808826/ark-pet/app/src/main/AndroidManifest.xml:44:9-54:19
+61            android:name="com.arkpet.accessibility.PetAccessibilityService"
+61-->/AstrBot/data/workspaces/_FriendMessage_3341808826/ark-pet/app/src/main/AndroidManifest.xml:45:13-66
+62            android:exported="false"
+62-->/AstrBot/data/workspaces/_FriendMessage_3341808826/ark-pet/app/src/main/AndroidManifest.xml:46:13-37
+63            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE" >
+63-->/AstrBot/data/workspaces/_FriendMessage_3341808826/ark-pet/app/src/main/AndroidManifest.xml:47:13-79
+64            <intent-filter>
+64-->/AstrBot/data/workspaces/_FriendMessage_3341808826/ark-pet/app/src/main/AndroidManifest.xml:48:13-50:29
+65                <action android:name="android.accessibilityservice.AccessibilityService" />
+65-->/AstrBot/data/workspaces/_FriendMessage_3341808826/ark-pet/app/src/main/AndroidManifest.xml:49:17-92
+65-->/AstrBot/data/workspaces/_FriendMessage_3341808826/ark-pet/app/src/main/AndroidManifest.xml:49:25-89
+66            </intent-filter>
+67
+68            <meta-data
+68-->/AstrBot/data/workspaces/_FriendMessage_3341808826/ark-pet/app/src/main/AndroidManifest.xml:51:13-53:64
+69                android:name="android.accessibilityservice"
+69-->/AstrBot/data/workspaces/_FriendMessage_3341808826/ark-pet/app/src/main/AndroidManifest.xml:52:17-60
+70                android:resource="@xml/accessibility_config" />
+70-->/AstrBot/data/workspaces/_FriendMessage_3341808826/ark-pet/app/src/main/AndroidManifest.xml:53:17-61
+71        </service>
+72
+73        <receiver
+73-->/AstrBot/data/workspaces/_FriendMessage_3341808826/ark-pet/app/src/main/AndroidManifest.xml:56:9-62:20
+74            android:name="com.arkpet.updater.BootReceiver"
+74-->/AstrBot/data/workspaces/_FriendMessage_3341808826/ark-pet/app/src/main/AndroidManifest.xml:57:13-49
+75            android:exported="true" >
+75-->/AstrBot/data/workspaces/_FriendMessage_3341808826/ark-pet/app/src/main/AndroidManifest.xml:58:13-36
+76            <intent-filter>
+76-->/AstrBot/data/workspaces/_FriendMessage_3341808826/ark-pet/app/src/main/AndroidManifest.xml:59:13-61:29
+77                <action android:name="android.intent.action.BOOT_COMPLETED" />
+77-->/AstrBot/data/workspaces/_FriendMessage_3341808826/ark-pet/app/src/main/AndroidManifest.xml:60:17-79
+77-->/AstrBot/data/workspaces/_FriendMessage_3341808826/ark-pet/app/src/main/AndroidManifest.xml:60:25-76
+78            </intent-filter>
+79        </receiver>
+80
+81        <!-- FileProvider for APK install (Android 7+) -->
+82        <provider
+82-->/AstrBot/data/workspaces/_FriendMessage_3341808826/ark-pet/app/src/main/AndroidManifest.xml:65:9-73:20
+83            android:name="androidx.core.content.FileProvider"
+83-->/AstrBot/data/workspaces/_FriendMessage_3341808826/ark-pet/app/src/main/AndroidManifest.xml:66:13-62
+84            android:authorities="com.arkpet.fileprovider"
+84-->/AstrBot/data/workspaces/_FriendMessage_3341808826/ark-pet/app/src/main/AndroidManifest.xml:67:13-58
+85            android:exported="false"
+85-->/AstrBot/data/workspaces/_FriendMessage_3341808826/ark-pet/app/src/main/AndroidManifest.xml:68:13-37
+86            android:grantUriPermissions="true" >
+86-->/AstrBot/data/workspaces/_FriendMessage_3341808826/ark-pet/app/src/main/AndroidManifest.xml:69:13-47
+87            <meta-data
+87-->/AstrBot/data/workspaces/_FriendMessage_3341808826/ark-pet/app/src/main/AndroidManifest.xml:70:13-72:54
+88                android:name="android.support.FILE_PROVIDER_PATHS"
+88-->/AstrBot/data/workspaces/_FriendMessage_3341808826/ark-pet/app/src/main/AndroidManifest.xml:71:17-67
+89                android:resource="@xml/file_paths" />
+89-->/AstrBot/data/workspaces/_FriendMessage_3341808826/ark-pet/app/src/main/AndroidManifest.xml:72:17-51
+90        </provider>
+91        <provider
+91-->[androidx.emoji2:emoji2:1.2.0] /root/.gradle/caches/transforms-4/d1bb7737b9d9889a285491f2099fe119/transformed/jetified-emoji2-1.2.0/AndroidManifest.xml:24:9-32:20
+92            android:name="androidx.startup.InitializationProvider"
+92-->[androidx.emoji2:emoji2:1.2.0] /root/.gradle/caches/transforms-4/d1bb7737b9d9889a285491f2099fe119/transformed/jetified-emoji2-1.2.0/AndroidManifest.xml:25:13-67
+93            android:authorities="com.arkpet.androidx-startup"
+93-->[androidx.emoji2:emoji2:1.2.0] /root/.gradle/caches/transforms-4/d1bb7737b9d9889a285491f2099fe119/transformed/jetified-emoji2-1.2.0/AndroidManifest.xml:26:13-68
+94            android:exported="false" >
+94-->[androidx.emoji2:emoji2:1.2.0] /root/.gradle/caches/transforms-4/d1bb7737b9d9889a285491f2099fe119/transformed/jetified-emoji2-1.2.0/AndroidManifest.xml:27:13-37
+95            <meta-data
+95-->[androidx.emoji2:emoji2:1.2.0] /root/.gradle/caches/transforms-4/d1bb7737b9d9889a285491f2099fe119/transformed/jetified-emoji2-1.2.0/AndroidManifest.xml:29:13-31:52
+96                android:name="androidx.emoji2.text.EmojiCompatInitializer"
+96-->[androidx.emoji2:emoji2:1.2.0] /root/.gradle/caches/transforms-4/d1bb7737b9d9889a285491f2099fe119/transformed/jetified-emoji2-1.2.0/AndroidManifest.xml:30:17-75
+97                android:value="androidx.startup" />
+97-->[androidx.emoji2:emoji2:1.2.0] /root/.gradle/caches/transforms-4/d1bb7737b9d9889a285491f2099fe119/transformed/jetified-emoji2-1.2.0/AndroidManifest.xml:31:17-49
+98            <meta-data
+98-->[androidx.lifecycle:lifecycle-process:2.4.1] /root/.gradle/caches/transforms-4/1d17453311d6f50f5f2f7b8b65b197b9/transformed/jetified-lifecycle-process-2.4.1/AndroidManifest.xml:31:13-33:52
+99                android:name="androidx.lifecycle.ProcessLifecycleInitializer"
+99-->[androidx.lifecycle:lifecycle-process:2.4.1] /root/.gradle/caches/transforms-4/1d17453311d6f50f5f2f7b8b65b197b9/transformed/jetified-lifecycle-process-2.4.1/AndroidManifest.xml:32:17-78
+100                android:value="androidx.startup" />
+100-->[androidx.lifecycle:lifecycle-process:2.4.1] /root/.gradle/caches/transforms-4/1d17453311d6f50f5f2f7b8b65b197b9/transformed/jetified-lifecycle-process-2.4.1/AndroidManifest.xml:33:17-49
+101        </provider>
+102    </application>
+103
+104</manifest>

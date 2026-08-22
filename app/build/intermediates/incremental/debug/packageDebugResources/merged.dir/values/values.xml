@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="ic_launcher_bg">#2C4A6E</color>
+    <string name="accessibility_desc">初雪桌宠无障碍服务：用于执行点击、滑动、输入等自动操作（MCP 引擎）</string>
+    <string name="app_name">初雪桌宠</string>
+</resources>

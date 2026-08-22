@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="24dp">
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="初雪桌宠"
+        android:textSize="24sp"
+        android:textStyle="bold"
+        android:layout_marginBottom="8dp"/>
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="连接服务器："
+        android:textSize="14sp"/>
+
+    <EditText
+        android:id="@+id/et_server_url"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="ws://服务器地址:9100/ws"
+        android:inputType="textUri"/>
+
+    <Button
+        android:id="@+id/btn_save"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="保存地址"
+        android:layout_marginTop="8dp"/>
+
+    <Button
+        android:id="@+id/btn_permission"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="授予权限（悬浮窗/无障碍/相机）"
+        android:layout_marginTop="16dp"/>
+
+    <Button
+        android:id="@+id/btn_start"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="启动桌宠"
+        android:layout_marginTop="8dp"/>
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="注意：需要在系统设置里允许后台运行、忽略电池优化，否则会被学习机杀后台。"
+        android:textSize="12sp"
+        android:textColor="#888888"
+        android:layout_marginTop="24dp"/>
+</LinearLayout>
