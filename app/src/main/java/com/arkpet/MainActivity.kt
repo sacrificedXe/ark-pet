@@ -32,30 +32,33 @@ class MainActivity : AppCompatActivity() {
         val etUrl = findViewById<EditText>(R.id.et_server_url)
         etUrl.setText(sp.getString("server_url", ""))
 
-        // 皮肤选择
+        // 皮肤选择（即时生效 + 持久化）
         val spSkin = findViewById<Spinner>(R.id.sp_skin)
         val skins = arrayOf("初雪(base)", "雪境(snow)", "云迹(cloud_trail)")
-        val skinAdapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, skins)
-        spSkin.adapter = skinAdapter
+        spSkin.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, skins)
+        var skinSpinnerReady = false
+        spSkin.setSelection(when (sp.getString("skin", "base")) { "snow" -> 1; "cloud_trail" -> 2; else -> 0 }, false)
         spSkin.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
             override fun onItemSelected(parent: android.widget.AdapterView<*>, view: android.view.View?, position: Int, id: Long) {
-                if (isServiceRunning) {
-                    val skinName = when (position) { 0 -> "base"; 1 -> "snow"; 2 -> "cloud_trail"; else -> "base" }
-                    PetOverlayService.instance?.setSkin(skinName)
-                }
+                if (!skinSpinnerReady) { skinSpinnerReady = true; return }  // 跳过初始回调
+                val skinName = when (position) { 1 -> "snow"; 2 -> "cloud_trail"; else -> "base" }
+                sp.edit().putString("skin", skinName).apply()
+                PetOverlayService.instance?.setSkin(skinName)
             }
             override fun onNothingSelected(parent: android.widget.AdapterView<*>) {}
         }
 
-        // 大小滑块
+        // 大小滑块（即时生效 + 持久化）
         val tvSizeLabel = findViewById<TextView>(R.id.tv_size_label)
         val sbSize = findViewById<SeekBar>(R.id.sb_size)
+        sbSize.progress = sp.getFloat("size_pct", 100f).toInt().coerceIn(40, 250)
+        tvSizeLabel.text = "大小：${sbSize.progress}%"
         sbSize.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar, progress: Int, fromUser: Boolean) {
-                if (fromUser && isServiceRunning) {
-                    val scale = progress / 100f
-                    PetOverlayService.instance?.setSize(scale)
-                    tvSizeLabel.text = "大小：${progress}%"
+                tvSizeLabel.text = "大小：${progress}%"
+                if (fromUser) {
+                    sp.edit().putFloat("size_pct", progress.toFloat()).apply()
+                    PetOverlayService.instance?.setSize(progress / 100f)
                 }
             }
             override fun onStartTrackingTouch(seekBar: SeekBar) {}

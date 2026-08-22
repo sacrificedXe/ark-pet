@@ -31,35 +31,14 @@ jobs:
           cmdline-tools-version: latest
           build-tools-version: 34.0.0
 
-      - name: Install Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: scripts/package-lock.json
-
-      - name: Install canvas system deps
+      - name: Verify WebP assets committed
         run: |
-          sudo apt-get update
-          sudo apt-get install -y build-essential libcairo2-dev libjpeg-dev libpango1.0-dev libgif-dev librsvg2-dev
-
-      - name: Install Spine bake deps
-        working-directory: scripts
-        run: npm install
-
-      - name: Bake 云迹 Spine → WebP
-        working-directory: scripts
-        run: node bake_cloud_trail.mjs
-
-      - name: Verify WebP outputs
-        run: |
-          ls -la app/src/main/assets/pet/cloud_trail_*.webp || true
+          N=$(ls app/src/main/assets/pet/cloud_trail_*.webp 2>/dev/null | wc -l)
+          echo "cloud_trail webp count: $N"
+          if [ "$N" -lt 5 ]; then echo "::error::cloud_trail webp assets missing in repo"; exit 1; fi
 
       - name: Build Debug APK
         run: |
-          chmod +x gradlew
-          # Regenerate wrapper in case jar is corrupted
-          gradle wrapper --gradle-version 8.7 --distribution-type bin 2>/dev/null || true
           chmod +x gradlew
           ./gradlew assembleDebug --no-daemon --stacktrace
 
@@ -70,16 +49,9 @@ jobs:
           path: app/build/outputs/apk/debug/app-debug.apk
           retention-days: 7
 
-      - name: Upload WebP Artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: cloud-trail-webp
-          path: app/src/main/assets/pet/cloud_trail_*.webp
-          retention-days: 7
-
       - name: Print APK Info
         if: success()
         run: |
           APK=app/build/outputs/apk/debug/app-debug.apk
           echo "APK size: $(du -h $APK | cut -f1)"
-          echo "Version: 0.3.0 (neural)"
+          unzip -l $APK | grep "assets/pet" || true

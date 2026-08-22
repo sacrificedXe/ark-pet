@@ -26,8 +26,6 @@ import com.arkpet.net.PetTransform
 import com.arkpet.net.WsClient
 import com.bumptech.glide.Glide
 import com.bumptech.glide.load.resource.drawable.DrawableTransitionOptions
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 
 /**
  * 桌宠悬浮窗：Glide 播动画 WebP + 皮肤切换 + 拖动 + 缩放 + 走路 + sense 上报
@@ -42,14 +40,14 @@ class PetOverlayService : Service() {
     private var overlayParams: WindowManager.LayoutParams? = null
     private var wsClient: WsClient? = null
     private var petScale = 1.0f
-    private var baseW = 0
-    private var baseH = 0
+    private val baseSizePx: Int by lazy { (256 * resources.displayMetrics.density).toInt() }
     private lateinit var scaleDetector: ScaleGestureDetector
     private var touchStartX = 0f
     private var touchStartY = 0f
     private var lastTouchTime = 0L
     private var isWalking = false
     private var walkCallback: ((Boolean) -> Unit)? = null
+    private var behaviorLoop: Runnable? = null
 
     companion object {
         const val CHANNEL_ID = "arkpet_pet"
@@ -76,7 +74,9 @@ class PetOverlayService : Service() {
         instance = this
         startForegroundCompat()
         wm = getSystemService(Context.WINDOW_SERVICE) as WindowManager
+        skin = getSharedPreferences("arkpet", MODE_PRIVATE).getString("skin", "base") ?: "base"
         setupOverlay()
+        startBehaviorLoop()
     }
 
     private fun startForegroundCompat() {
@@ -117,6 +117,7 @@ class PetOverlayService : Service() {
 
         rootView = LayoutInflater.from(this).inflate(R.layout.overlay_pet, null)
         ivPet = rootView.findViewById(R.id.iv_pet)
+        ivPet.layoutParams = ViewGroup.LayoutParams(baseSizePx, baseSizePx)
 
         // 皮肤切换：长按桌宠循环 base/snow/cloud_trail
         ivPet.setOnLongClickListener {
@@ -138,14 +139,11 @@ class PetOverlayService : Service() {
             }
         })
 
-        ivPet.post {
-            if (baseW == 0) { baseW = ivPet.width; baseH = ivPet.height }
-            // 应用保存的 scale/flipX/visible
-            petScale = saved.scale
-            applyScale()
-            ivPet.scaleX = if (saved.flipX) -1f else 1f
-            rootView.visibility = if (saved.visible) View.VISIBLE else View.INVISIBLE
-        }
+        // 基准尺寸固定，立即可用；应用保存的 scale/flipX/visible
+        petScale = saved.scale.coerceIn(MIN_SCALE, MAX_SCALE)
+        applyScale()
+        ivPet.scaleX = if (saved.flipX) -1f else 1f
+        rootView.visibility = if (saved.visible) View.VISIBLE else View.INVISIBLE
 
         // 拖动 + 点击判定
         rootView.setOnTouchListener { _, ev ->
@@ -185,7 +183,6 @@ class PetOverlayService : Service() {
                         // 点击桌宠本体 → sense.touch + 触发 Interact 动画
                         wsClient?.reportTouch(ev.rawX, ev.rawY, MotionEvent.ACTION_UP, duration)
                         playAnimation("Interact")
-                        wsClient?.reportAnim("Interact")
                     } else {
                         // 拖动结束 → 上报 transform
                         saveTransform()
@@ -201,16 +198,13 @@ class PetOverlayService : Service() {
         loadAnim()
     }
 
-    /** 播放动画（支持 speed/loop/flipX） */
+    /** 播放动画（支持 speed/loop/flipX），缺图自动回退 base 皮肤 */
     fun playAnimation(name: String, speed: Double = 1.0, loop: Boolean = true, flipX: Boolean = false) {
         val valid = listOf("Default", "Interact", "Move", "Relax", "Sit", "Sleep", "Special")
         anim = if (name in valid) name else "Relax"
         ivPet.scaleX = if (flipX) -1f else 1f
-        val uri = "file:///android_asset/pet/${skin}_${anim}.webp"
-        Glide.with(this)
-            .load(uri)
-            .transition(DrawableTransitionOptions.withCrossFade(200))
-            .into(ivPet)
+        loadAnim()
+        wsClient?.reportAnim(anim)
     }
 
     /** 供 MCP 调用：切换皮肤 */
@@ -218,16 +212,46 @@ class PetOverlayService : Service() {
         if (name !in setOf("base", "snow", "cloud_trail")) return
         if (skin == name) return
         skin = name
+        getSharedPreferences("arkpet", MODE_PRIVATE).edit().putString("skin", skin).apply()
         loadAnim()
     }
 
-    /** 加载当前皮肤+动画 */
+    /** 加载当前皮肤+动画，皮肤缺图时回退 base 同名动画 */
     private fun loadAnim() {
-        val uri = "file:///android_asset/pet/${skin}_${anim}.webp"
-        Glide.with(this)
-            .load(uri)
-            .transition(DrawableTransitionOptions.withCrossFade(200))
-            .into(ivPet)
+        val primary = Glide.with(this).load("file:///android_asset/pet/${skin}_${anim}.webp")
+        if (skin != "base") {
+            primary.error(Glide.with(this).load("file:///android_asset/pet/base_${anim}.webp"))
+        }
+        primary.transition(DrawableTransitionOptions.withCrossFade(200)).into(ivPet)
+    }
+
+    /** 自主行为循环：随机待机动画 + 偶尔自己溜达 */
+    private fun startBehaviorLoop() {
+        val loop = object : Runnable {
+            override fun run() {
+                try {
+                    if (!isWalking && rootView.visibility == View.VISIBLE) {
+                        when ((0..99).random()) {
+                            in 0..14 -> {
+                                // 小走动：附近随机一点，不出屏
+                                val dm = resources.displayMetrics
+                                val curX = overlayParams?.x ?: 0
+                                val curY = overlayParams?.y ?: 0
+                                val tx = (curX + (-160..160).random()).coerceIn(0, (dm.widthPixels - baseSizePx).coerceAtLeast(0))
+                                val ty = (curY + (-120..120).random()).coerceIn(0, (dm.heightPixels - baseSizePx).coerceAtLeast(0))
+                                if (tx != curX || ty != curY) walkTo(tx, ty, 2200L) { }
+                            }
+                            in 15..44 -> playAnimation("Sit")
+                            in 45..74 -> playAnimation("Sleep")
+                            else -> playAnimation("Relax")
+                        }
+                    }
+                } catch (_: Exception) { }
+                mainHandler.postDelayed(this, (9000L..22000L).random())
+            }
+        }
+        mainHandler.postDelayed(loop, 6000L)
+        behaviorLoop = loop
     }
 
     /** 气泡：在桌宠上方短暂显示文字 */
@@ -261,10 +285,9 @@ class PetOverlayService : Service() {
 
     /** 双指缩放 */
     private fun applyScale() {
-        if (baseW == 0 || baseH == 0) return
         val lp = ivPet.layoutParams
-        lp.width = (baseW * petScale).toInt().coerceAtLeast(50)
-        lp.height = (baseH * petScale).toInt().coerceAtLeast(50)
+        lp.width = (baseSizePx * petScale).toInt().coerceAtLeast(48)
+        lp.height = lp.width
         ivPet.layoutParams = lp
     }
 
@@ -306,7 +329,6 @@ class PetOverlayService : Service() {
 
         // 切换到 Move 动画
         playAnimation("Move")
-        wsClient?.reportAnim("Move")
 
         // 分段插值动画（20帧/秒，约 50ms 一帧）
         val frames = maxOf(1, (durationMs / 50).toInt())
@@ -325,7 +347,6 @@ class PetOverlayService : Service() {
                 walkCallback = null
                 // 切回 Idle
                 playAnimation("Default")
-                wsClient?.reportAnim("Default")
                 wsClient?.reportTransform()
                 onArrived(true)
                 return
@@ -355,6 +376,7 @@ class PetOverlayService : Service() {
 
     override fun onDestroy() {
         instance = null
+        behaviorLoop?.let { mainHandler.removeCallbacks(it) }
         wsClient?.stop()
         try { wm.removeView(rootView) } catch (_: Exception) {}
         super.onDestroy()
