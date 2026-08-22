@@ -37,11 +37,11 @@ class ScreenTools(private val ctx: Context) {
     /** 截图：返回 base64 JPEG（需先授权 MediaProjection） */
     fun capture(p: JSONObject): JSONObject = runBlocking(Dispatchers.IO) {
         if (mediaProjection == null) {
-            return JSONObject().put("status", "error")
+            return@runBlocking JSONObject().put("status", "error")
                 .put("error", "media_projection_not_granted")
                 .put("hint", "请先调用 request_media_projection 获取授权")
         }
-        return captureScreen(p.optInt("quality", 80), p.optInt("max_dim", 1920))
+        return@runBlocking captureScreen(p.optInt("quality", 80), p.optInt("max_dim", 1920))
     }
 
     /** 请求 MediaProjection 授权（需在 Activity 中调用 startActivityForResult） */

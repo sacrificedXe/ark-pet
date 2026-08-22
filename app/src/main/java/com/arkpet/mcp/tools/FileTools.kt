@@ -56,17 +56,17 @@ class FileTools(private val ctx: Context) {
     /** 文件回传：小文件 base64，大文件返回临时 HTTP 下载链接 */
     fun pull(p: JSONObject): JSONObject = runBlocking(Dispatchers.IO) {
         val path = p.optString("path")
-        if (path.isEmpty()) return err("need path")
+        if (path.isEmpty()) return@runBlocking err("need path")
         val f = File(path)
-        if (!f.exists()) return err("not_found")
-        if (f.isDirectory) return err("is_directory")
+        if (!f.exists()) return@runBlocking err("not_found")
+        if (f.isDirectory) return@runBlocking err("is_directory")
 
         val size = f.length()
         if (size <= MAX_BASE64_SIZE) {
             // 小文件：直接 base64
             val bytes = f.readBytes()
             val b64 = Base64.encodeToString(bytes, Base64.NO_WRAP)
-            return JSONObject().put("status", "ok").put("data", JSONObject().apply {
+            return@runBlocking JSONObject().put("status", "ok").put("data", JSONObject().apply {
                 put("path", path)
                 put("size", size)
                 put("base64", b64)
@@ -79,7 +79,7 @@ class FileTools(private val ctx: Context) {
             f.copyTo(dest)
             // 清理 1 小时前的临时文件
             cleanupOld()
-            return JSONObject().put("status", "ok").put("data", JSONObject().apply {
+            return@runBlocking JSONObject().put("status", "ok").put("data", JSONObject().apply {
                 put("path", path)
                 put("size", size)
                 put("download_url", "/file_pull/$token/${f.name}")
