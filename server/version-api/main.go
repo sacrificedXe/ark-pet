@@ -1,1 +1,69 @@
-cGFja2FnZSBtYWluCgppbXBvcnQgKAoJImVuY29kaW5nL2pzb24iCgkiZmxhZyIKCSJmbXQiCgkibG9nIgoJIm5ldC9odHRwIgoJIm9zIgopCgovLyDniYjmnKzmlbDmja7jgIJDSSDlj5HniYjml7blhpnlhaUgdmVyc2lvbi5qc29u44CCCnR5cGUgVmVyc2lvbkluZm8gc3RydWN0IHsKCVZlcnNpb24gc3RyaW5nIGBqc29uOiJ2ZXJzaW9uImAKCVVSTCAgICAgc3RyaW5nIGBqc29uOiJ1cmwiYAoJTm90ZSAgICBzdHJpbmcgYGpzb246Im5vdGUiYAoJRm9yY2UgICBib29sICAgYGpzb246ImZvcmNlLG9taXRlbXB0eSJgCn0KCnZhciAoCgl2ZXJzaW9uIFZlcnNpb25JbmZvCgl0b2tlbiAgIHN0cmluZwopCgpmdW5jIG1haW4oKSB7Cglwb3J0IDo9IGZsYWcuSW50KCJwb3J0IiwgOTEwMiwgImxpc3RlbiBwb3J0IikKCXRva2VuRW52IDo9IG9zLkdldGVudigiVE9LRU4iKQoJZmxhZy5QYXJzZSgpCgl0b2tlbiA9IHRva2VuRW52CgoJZGF0YSwgZXJyIDo9IG9zLlJlYWRGaWxlKCJ2ZXJzaW9uLmpzb24iKQoJaWYgZXJyICE9IG5pbCB7CgkJbG9nLlByaW50ZigiW1dBUk5dIHZlcnNpb24uanNvbiDmnKrmib7liLDvvIzkvb/nlKjpu5jorqTlgLwiKQoJCXZlcnNpb24gPSBWZXJzaW9uSW5mb3tWZXJzaW9uOiAiMC4wLjAiLCBVUkw6ICIvIiwgTm90ZTogIuacqumFjee9riJ9Cgl9IGVsc2UgewoJCWlmIGVyciA9IGpzb24uVW5tYXJzaGFsKGRhdGEsICZ2ZXJzaW9uKTsgZXJyICE9IG5pbCB7CgkJCWxvZy5GYXRhbGYoInZlcnNpb24uanNvbiDop6PmnpDlpLHotKU6ICV2IiwgZXJyKQoJCX0KCX0KCgltdXggOj0gaHR0cC5OZXdTZXJ2ZU11eCgpCgltdXguSGFuZGxlRnVuYygiL2FwaS92ZXJzaW9uIiwgd2l0aFRva2VuKGhWZXJzaW9uKSkKCWFwa0RpciA6PSBvcy5HZXRlbnYoIkFQS19ESVIiKQoJaWYgYXBrRGlyID09ICIiIHsKCQlhcGtEaXIgPSAiL2hvbWUvYWRtaW4vYXJrcGV0X2FwayIKCX0KCW11eC5IYW5kbGUoIi9kb3dubG9hZC8iLCBodHRwLlN0cmlwUHJlZml4KCIvZG93bmxvYWQvIiwKCQlodHRwLkZpbGVTZXJ2ZXIoaHR0cC5EaXIoYXBrRGlyKSkpKQoKCWxvZy5QcmludGYoImFyay1wZXQgdmVyc2lvbiBhcGkgbGlzdGVuaW5nIG9uIDolZCAodmVyc2lvbj0lcykiLCAqcG9ydCwgdmVyc2lvbi5WZXJzaW9uKQoJbG9nLkZhdGFsKGh0dHAuTGlzdGVuQW5kU2VydmUoZm10LlNwcmludGYoIjolZCIsICpwb3J0KSwgbXV4KSkKfQoKZnVuYyB3aXRoVG9rZW4obmV4dCBodHRwLkhhbmRsZXJGdW5jKSBodHRwLkhhbmRsZXJGdW5jIHsKCXJldHVybiBmdW5jKHcgaHR0cC5SZXNwb25zZVdyaXRlciwgciAqaHR0cC5SZXF1ZXN0KSB7CgkJaWYgdG9rZW4gIT0gIiIgJiYgci5IZWFkZXIuR2V0KCJBdXRob3JpemF0aW9uIikgIT0gIkJlYXJlciAiK3Rva2VuIHsKCQkJaHR0cC5FcnJvcih3LCAidW5hdXRob3JpemVkIiwgaHR0cC5TdGF0dXNVbmF1dGhvcml6ZWQpCgkJCXJldHVybgoJCX0KCQluZXh0KHcsIHIpCgl9Cn0KCmZ1bmMgaFZlcnNpb24odyBodHRwLlJlc3BvbnNlV3JpdGVyLCByICpodHRwLlJlcXVlc3QpIHsKCXcuSGVhZGVyKCkuU2V0KCJDb250ZW50LVR5cGUiLCAiYXBwbGljYXRpb24vanNvbiIpCglpZiBlcnIgOj0ganNvbi5OZXdFbmNvZGVyKHcpLkVuY29kZSh2ZXJzaW9uKTsgZXJyICE9IG5pbCB7CgkJbG9nLlByaW50ZigiZW5jb2RlIHZlcnNpb24gZmFpbDogJXYiLCBlcnIpCgl9Cn0K
+package main
+
+import (
+	"encoding/json"
+	"flag"
+	"fmt"
+	"log"
+	"net/http"
+	"os"
+)
+
+// 版本数据。CI 发版时写入 version.json。
+type VersionInfo struct {
+	Version string `json:"version"`
+	URL     string `json:"url"`
+	Note    string `json:"note"`
+	Force   bool   `json:"force,omitempty"`
+}
+
+var (
+	version VersionInfo
+	token   string
+)
+
+func main() {
+	port := flag.Int("port", 9102, "listen port")
+	tokenEnv := os.Getenv("TOKEN")
+	flag.Parse()
+	token = tokenEnv
+
+	data, err := os.ReadFile("version.json")
+	if err != nil {
+		log.Printf("[WARN] version.json 未找到，使用默认值")
+		version = VersionInfo{Version: "0.0.0", URL: "/", Note: "未配置"}
+	} else {
+		if err = json.Unmarshal(data, &version); err != nil {
+			log.Fatalf("version.json 解析失败: %v", err)
+		}
+	}
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/version", withToken(hVersion))
+	apkDir := os.Getenv("APK_DIR")
+	if apkDir == "" {
+		apkDir = "/home/admin/arkpet_apk"
+	}
+	mux.Handle("/download/", http.StripPrefix("/download/",
+		http.FileServer(http.Dir(apkDir))))
+
+	log.Printf("ark-pet version api listening on :%d (version=%s)", *port, version.Version)
+	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", *port), mux))
+}
+
+func withToken(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if token != "" && r.Header.Get("Authorization") != "Bearer "+token {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		next(w, r)
+	}
+}
+
+func hVersion(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(version); err != nil {
+		log.Printf("encode version fail: %v", err)
+	}
+}

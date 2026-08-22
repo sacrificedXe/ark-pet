@@ -1,1 +1,34 @@
-cGx1Z2lucyB7CiAgICBpZCgiY29tLmFuZHJvaWQuYXBwbGljYXRpb24iKQogICAgaWQoIm9yZy5qZXRicmFpbnMua290bGluLmFuZHJvaWQiKQp9CgphbmRyb2lkIHsKICAgIG5hbWVzcGFjZSA9ICJjb20uYXJrcGV0IgogICAgY29tcGlsZVNkayA9IDM0CgogICAgZGVmYXVsdENvbmZpZyB7CiAgICAgICAgYXBwbGljYXRpb25JZCA9ICJjb20uYXJrcGV0IgogICAgICAgIG1pblNkayA9IDI4CiAgICAgICAgdGFyZ2V0U2RrID0gMjgKICAgICAgICB2ZXJzaW9uQ29kZSA9IDMKICAgICAgICB2ZXJzaW9uTmFtZSA9ICIwLjMuMCIKICAgIH0KCiAgICBidWlsZFR5cGVzIHsKICAgICAgICByZWxlYXNlIHsgaXNNaW5pZnlFbmFibGVkID0gZmFsc2UgfQogICAgICAgIGRlYnVnIHsgaXNNaW5pZnlFbmFibGVkID0gZmFsc2UgfQogICAgfQogICAgY29tcGlsZU9wdGlvbnMgeyBzb3VyY2VDb21wYXRpYmlsaXR5ID0gSmF2YVZlcnNpb24uVkVSU0lPTl8xXzg7IHRhcmdldENvbXBhdGliaWxpdHkgPSBKYXZhVmVyc2lvbi5WRVJTSU9OXzFfOCB9CiAgICBrb3RsaW5PcHRpb25zIHsganZtVGFyZ2V0ID0gIjEuOCIgfQp9CgpkZXBlbmRlbmNpZXMgewogICAgaW1wbGVtZW50YXRpb24oImFuZHJvaWR4LmNvcmU6Y29yZS1rdHg6MS4xMi4wIikKICAgIGltcGxlbWVudGF0aW9uKCJhbmRyb2lkeC5hcHBjb21wYXQ6YXBwY29tcGF0OjEuNi4xIikKICAgIGltcGxlbWVudGF0aW9uKCJjb20uc3F1YXJldXAub2todHRwMzpva2h0dHA6NC4xMi4wIikKICAgIGltcGxlbWVudGF0aW9uKCJvcmcuamV0YnJhaW5zLmtvdGxpbng6a290bGlueC1jb3JvdXRpbmVzLWFuZHJvaWQ6MS43LjMiKQogICAgaW1wbGVtZW50YXRpb24oImNvbS5naXRodWIuYnVtcHRlY2guZ2xpZGU6Z2xpZGU6NC4xNi4wIikKICAgIGltcGxlbWVudGF0aW9uKCJkZXYucmlra2Euc2hpenVrdTphcGk6MTMuMS41IikKICAgIGltcGxlbWVudGF0aW9uKCJhbmRyb2lkeC53b3JrOndvcmstcnVudGltZS1rdHg6Mi45LjAiKQp9Cg==
+plugins {
+    id("com.android.application")
+    id("org.jetbrains.kotlin.android")
+}
+
+android {
+    namespace = "com.arkpet"
+    compileSdk = 34
+
+    defaultConfig {
+        applicationId = "com.arkpet"
+        minSdk = 28
+        targetSdk = 28
+        versionCode = 3
+        versionName = "0.3.0"
+    }
+
+    buildTypes {
+        release { isMinifyEnabled = false }
+        debug { isMinifyEnabled = false }
+    }
+    compileOptions { sourceCompatibility = JavaVersion.VERSION_1_8; targetCompatibility = JavaVersion.VERSION_1_8 }
+    kotlinOptions { jvmTarget = "1.8" }
+}
+
+dependencies {
+    implementation("androidx.core:core-ktx:1.12.0")
+    implementation("androidx.appcompat:appcompat:1.6.1")
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
+    implementation("com.github.bumptech.glide:glide:4.16.0")
+    implementation("dev.rikka.shizuku:api:13.1.5")
+    implementation("androidx.work:work-runtime-ktx:2.9.0")
+}

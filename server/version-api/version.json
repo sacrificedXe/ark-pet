@@ -1,1 +1,6 @@
-ewogICJ2ZXJzaW9uIjogIjAuMy4wIiwKICAidXJsIjogImh0dHA6Ly8zOS4xMDQuMjcuMjE0OjkxMDEvZG93bmxvYWQvYXJrLXBldC5hcGsiLAogICJub3RlIjogInYwLjMuMO+8muaWsOWinuawlOazoei+k+WFpeahhijlj4zlh7vmoYzlrqAp44CB6KeS6Imy5qCR44CB6KGM5Li65byA5YWz44CB6Ieq5Yqo5pu05paw44CC5Y+M5Ye75qGM5a6g5by55Ye65raI5oGv6L6T5YWl5qGGKOaUr+aMgeaWh+Wtly/mlofku7Yp77yM6ZW/5oyJ5YiH5o2i55qu6IKk44CCIiwKICAiZm9yY2UiOiBmYWxzZQp9Cg==
+{
+  "version": "0.3.0",
+  "url": "http://39.104.27.214:9101/download/ark-pet.apk",
+  "note": "v0.3.0：新增气泡输入框(双击桌宠)、角色树、行为开关、自动更新。双击桌宠弹出消息输入框(支持文字/文件)，长按切换皮肤。",
+  "force": false
+}

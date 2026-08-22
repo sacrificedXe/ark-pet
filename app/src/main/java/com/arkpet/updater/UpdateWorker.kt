@@ -1,1 +1,26 @@
-cGFja2FnZSBjb20uYXJrcGV0LnVwZGF0ZXIKCmltcG9ydCBhbmRyb2lkLmNvbnRlbnQuQ29udGV4dAppbXBvcnQgYW5kcm9pZHgud29yay5Db3JvdXRpbmVXb3JrZXIKaW1wb3J0IGFuZHJvaWR4LndvcmsuV29ya2VyUGFyYW1ldGVycwppbXBvcnQga290bGlueC5jb3JvdXRpbmVzLkRpc3BhdGNoZXJzCmltcG9ydCBrb3RsaW54LmNvcm91dGluZXMud2l0aENvbnRleHQKCi8qKgogKiDlkI7lj7DlkajmnJ/mgKfmo4Dmn6Xmm7TmlrDvvIhXb3JrTWFuYWdlciAxMmjvvInjgIIKICogQm9vdFJlY2VpdmVyIOWcqOWQr+WKqOaXtuS5n+S8mueri+WNs+WFpemYn+S4gOasoeOAggogKi8KY2xhc3MgVXBkYXRlV29ya2VyKHByaXZhdGUgdmFsIGN0eDogQ29udGV4dCwgcGFyYW1zOiBXb3JrZXJQYXJhbWV0ZXJzKSA6IENvcm91dGluZVdvcmtlcihjdHgsIHBhcmFtcykgewoKICAgIG92ZXJyaWRlIHN1c3BlbmQgZnVuIGRvV29yaygpOiBSZXN1bHQgPSB3aXRoQ29udGV4dChEaXNwYXRjaGVycy5JTykgewogICAgICAgIHZhbCBzZXJ2ZXJVcmwgPSBjdHguZ2V0U2hhcmVkUHJlZmVyZW5jZXMoImFya3BldCIsIENvbnRleHQuTU9ERV9QUklWQVRFKQogICAgICAgICAgICAuZ2V0U3RyaW5nKCJzZXJ2ZXJfdXJsIiwgIiIpID86ICIiCiAgICAgICAgaWYgKHNlcnZlclVybC5pc0JsYW5rKCkpIHJldHVybkB3aXRoQ29udGV4dCBSZXN1bHQuc3VjY2VzcygpCiAgICAgICAgdmFsIGNoZWNrZXIgPSBVcGRhdGVDaGVja2VyKGN0eCkKICAgICAgICBjaGVja2VyLmNoZWNrKHNlcnZlclVybCwgZm9yY2UgPSBmYWxzZSkgeyBfIC0+CiAgICAgICAgICAgIC8vIOaWsOeJiOW3suWIsO+8jOmAmuefpeagj+eUsSBVcGRhdGVDaGVja2VyIOiHquW3seWPke+8m+i/memHjOS7gOS5iOmDveS4jeWBmgogICAgICAgICAgICAvLyDlpoLmnpzluIzmnJvlvLnnqpfmm7TmmI7noa7vvIzlj6/ku6XlnKjov5nph4zlj5HkuIDkuKrluKYgUGVuZGluZ0ludGVuZCDnmoTpgJrnn6Xot7PovazliLAgTWFpbkFjdGl2aXR5CiAgICAgICAgfQogICAgICAgIFJlc3VsdC5zdWNjZXNzKCkKICAgIH0KfQo=
+package com.arkpet.updater
+
+import android.content.Context
+import androidx.work.CoroutineWorker
+import androidx.work.WorkerParameters
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+
+/**
+ * 后台周期性检查更新（WorkManager 12h）。
+ * BootReceiver 在启动时也会立即入队一次。
+ */
+class UpdateWorker(private val ctx: Context, params: WorkerParameters) : CoroutineWorker(ctx, params) {
+
+    override suspend fun doWork(): Result = withContext(Dispatchers.IO) {
+        val serverUrl = ctx.getSharedPreferences("arkpet", Context.MODE_PRIVATE)
+            .getString("server_url", "") ?: ""
+        if (serverUrl.isBlank()) return@withContext Result.success()
+        val checker = UpdateChecker(ctx)
+        checker.check(serverUrl, force = false) { _ ->
+            // 新版已到，通知栏由 UpdateChecker 自己发；这里什么都不做
+            // 如果希望弹窗更明确，可以在这里发一个带 PendingIntend 的通知跳转到 MainActivity
+        }
+        Result.success()
+    }
+}

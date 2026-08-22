@@ -1,1 +1,8 @@
-PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0idXRmLTgiPz4KPHNoYXBlIHhtbG5zOmFuZHJvaWQ9Imh0dHA6Ly9zY2hlbWFzLmFuZHJvaWQuY29tL2Fway9yZXMvYW5kcm9pZCIKICAgIGFuZHJvaWQ6c2hhcGU9InJlY3RhbmdsZSI+CiAgICA8c29saWQgYW5kcm9pZDpjb2xvcj0iI0VFRkZGRkZGIiAvPgogICAgPHN0cm9rZSBhbmRyb2lkOndpZHRoPSIxZHAiIGFuZHJvaWQ6Y29sb3I9IiNBQTMzMzMzMyIgLz4KICAgIDxjb3JuZXJzIGFuZHJvaWQ6cmFkaXVzPSI4ZHAiIC8+CiAgICA8cGFkZGluZyBhbmRyb2lkOmxlZnQ9IjRkcCIgYW5kcm9pZDpyaWdodD0iNGRwIiBhbmRyb2lkOnRvcD0iNGRwIiBhbmRyb2lkOmJvdHRvbT0iNGRwIiAvPgo8L3NoYXBlPgo=
+<?xml version="1.0" encoding="utf-8"?>
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="#EEFFFFFF" />
+    <stroke android:width="1dp" android:color="#AA333333" />
+    <corners android:radius="8dp" />
+    <padding android:left="4dp" android:right="4dp" android:top="4dp" android:bottom="4dp" />
+</shape>

@@ -1,1 +1,36 @@
-cGFja2FnZSBjb20uYXJrcGV0LmNvcmUKCmRhdGEgY2xhc3MgU2tpbkluZm8odmFsIGlkOiBTdHJpbmcsIHZhbCBuYW1lOiBTdHJpbmcpCgpkYXRhIGNsYXNzIFJvbGVJbmZvKAogICAgdmFsIGlkOiBTdHJpbmcsCiAgICB2YWwgbmFtZTogU3RyaW5nLAogICAgdmFsIHNraW5zOiBMaXN0PFNraW5JbmZvPgopIHsKICAgIGZ1biBza2luT2YoaWQ6IFN0cmluZykgPSBza2lucy5maW5kIHsgaXQuaWQgPT0gaWQgfQogICAgZnVuIGRlZmF1bHRTa2luKCkgPSBza2lucy5maXJzdE9yTnVsbCgpID86IFNraW5JbmZvKCJiYXNlIiwgIuWInembqiIpCn0KCi8qKgogKiDop5LoibIt55qu6IKk5rOo5YaM6KGo44CCCiAqIOaWsOWinuinkuiJsu+8muW+gCByb2xlcyDliJfooaggYXBwZW5kIFJvbGVJbmZv77yM5bm25oqKIGFzc2V0L3BldC97c2tpbl9pZH1fe2FuaW19LndlYnAg5pS+5YWlIGFzc2V0cyDnm67lvZXljbPlj6/vvIzml6DpnIDmlLnku6PnoIHjgIIKICog6buY6K6k5Yqo55S76ZuG77yaYXNzZXQg5paH5Lu25YmN57yA57qm5a6a5Li6ICJ7c2tpbl9pZH1fIu+8iOWmgiBjbG91ZF90cmFpbF9EZWZhdWx0LndlYnDvvInjgIIKICovCm9iamVjdCBSb2xlUmVnaXN0cnkgewogICAgdmFsIHJvbGVzOiBMaXN0PFJvbGVJbmZvPiA9IGxpc3RPZigKICAgICAgICBSb2xlSW5mbygKICAgICAgICAgICAgaWQgPSAiY2h1eHVlIiwKICAgICAgICAgICAgbmFtZSA9ICLliJ3pm6oiLAogICAgICAgICAgICBza2lucyA9IGxpc3RPZigKICAgICAgICAgICAgICAgIFNraW5JbmZvKCJiYXNlIiwgIuWInembqiIpLAogICAgICAgICAgICAgICAgU2tpbkluZm8oInNub3ciLCAi6Zuq5aKDIiksCiAgICAgICAgICAgICAgICBTa2luSW5mbygiY2xvdWRfdHJhaWwiLCAi5LqR6L+5IikKICAgICAgICAgICAgKQogICAgICAgICkKICAgICkKCiAgICBmdW4gYnlJZChpZDogU3RyaW5nKSA9IHJvbGVzLmZpbmQgeyBpdC5pZCA9PSBpZCB9CiAgICBmdW4gYWxsU2tpbnMoKSA9IHJvbGVzLmZsYXRNYXAgeyByIC0+IHIuc2tpbnMgfQogICAgZnVuIHJvbGVPZlNraW4oc2tpbklkOiBTdHJpbmcpOiBSb2xlSW5mbz8gPSByb2xlcy5maW5kIHsgciAtPiByLnNraW5PZihza2luSWQpICE9IG51bGwgfQogICAgZnVuIHJlc29sdmUoc2tpbklkOiBTdHJpbmcpOiBTa2luSW5mbyA9IGFsbFNraW5zKCkuZmluZCB7IGl0LmlkID09IHNraW5JZCB9ID86IGFsbFNraW5zKCkuZmlyc3QoKQp9Cg==
+package com.arkpet.core
+
+data class SkinInfo(val id: String, val name: String)
+
+data class RoleInfo(
+    val id: String,
+    val name: String,
+    val skins: List<SkinInfo>
+) {
+    fun skinOf(id: String) = skins.find { it.id == id }
+    fun defaultSkin() = skins.firstOrNull() ?: SkinInfo("base", "初雪")
+}
+
+/**
+ * 角色-皮肤注册表。
+ * 新增角色：往 roles 列表 append RoleInfo，并把 asset/pet/{skin_id}_{anim}.webp 放入 assets 目录即可，无需改代码。
+ * 默认动画集：asset 文件前缀约定为 "{skin_id}_"（如 cloud_trail_Default.webp）。
+ */
+object RoleRegistry {
+    val roles: List<RoleInfo> = listOf(
+        RoleInfo(
+            id = "chuxue",
+            name = "初雪",
+            skins = listOf(
+                SkinInfo("base", "初雪"),
+                SkinInfo("snow", "雪境"),
+                SkinInfo("cloud_trail", "云迹")
+            )
+        )
+    )
+
+    fun byId(id: String) = roles.find { it.id == id }
+    fun allSkins() = roles.flatMap { r -> r.skins }
+    fun roleOfSkin(skinId: String): RoleInfo? = roles.find { r -> r.skinOf(skinId) != null }
+    fun resolve(skinId: String): SkinInfo = allSkins().find { it.id == skinId } ?: allSkins().first()
+}

@@ -1,1 +1,58 @@
-IyDliJ3pm6rmoYzlrqAgwrcg54mI5pysIEFQSQoK5Y2V5paH5Lu2IEdvIOacjeWKoe+8jOmDqOe9suWcqOWuv+S4u+acuiBgMzkuMTA0LjI3LjIxNDo5MTAyYO+8jOS4jiBXUyg5MTAwKS/mlofku7bmnI3liqEoOTEwMSkg5YiG5byA44CCCgojIyDmjqXlj6MKCmBgYApHRVQgL2FwaS92ZXJzaW9uCnsKICAidmVyc2lvbiI6ICIwLjMuMCIsCiAgInVybCI6ICJodHRwOi8vMzkuMTA0LjI3LjIxNDo5MTAxL2Rvd25sb2FkL2Fyay1wZXQuYXBrIiwKICAibm90ZSI6ICLmlrDlop7msJTms6HovpPlhaXmoYbjgIHop5LoibLmoJHjgIHooYzkuLrlvIDlhbPjgIHoh6rliqjmm7TmlrAiLAogICJmb3JjZSI6IGZhbHNlCn0KYGBgCgotIGB2ZXJzaW9uYCDlv4XpobvkuKXmoLzlpKfkuo7moYzpnaLnq68gdmVyc2lvbk5hbWUg5omN6Kem5Y+R5pu05pawCi0gYGZvcmNlPXRydWVg77ya5ZCv5Yqo5Y2z5by65Yi25pu05paw77yI5qGM5a6g56uv5Lya5by55LiN5Y+v5Y+W5raI5a+56K+d5qGG77yJCi0gYHVybGAg55u06ZO+IEFQS++8m+ahjOWuoOerr+S4i+i9veWQjui1sOezu+e7n+WuieijheWZqO+8iEZpbGVQcm92aWRlciDlt7LphY3vvIkKCiMjIOmDqOe9suatpemqpAoKYGBgYmFzaAojIDEuIOe8luivke+8iOmcgOimgSBHbyAxLjIxK++8iQpjZCBzZXJ2ZXIvdmVyc2lvbi1hcGkgJiYgZ28gYnVpbGQgLW8gdmVyc2lvbl9hcGkgLgoKIyAyLiDku6Ugc3lzdGVtZCDmiZjnrqEKc3VkbyB0ZWUgL2V0Yy9zeXN0ZW1kL3N5c3RlbS9hcmtwZXQtdmVyc2lvbi1hcGkuc2VydmljZSA8PCdFT0YnCltVbml0XQpEZXNjcmlwdGlvbj1BcmtQZXQgVmVyc2lvbiBBUEkKQWZ0ZXI9bmV0d29yay50YXJnZXQKCltTZXJ2aWNlXQpFeGVjU3RhcnQ9L3Vzci9sb2NhbC9iaW4vdmVyc2lvbl9hcGkKUmVzdGFydD1hbHdheXMKRW52aXJvbm1lbnQ9UE9SVD05MTAyCkVudmlyb25tZW50PUFQS19ESVI9L2hvbWUvYWRtaW4vYXJrcGV0X2FwawpFbnZpcm9ubWVudD1UT0tFTj15b3VyX2FkbWluX3Rva2VuX2hlcmUKCltJbnN0YWxsXQpXYW50ZWRCeT1tdWx0aS11c2VyLnRhcmdldApFT0YKc3VkbyBzeXN0ZW1jdGwgZW5hYmxlIC0tbm93IGFya3BldC12ZXJzaW9uLWFwaQoKIyAzLiBDSSDlj5HniYjml7bmm7TmlrAgQVBLIOWSjOeJiOacrOWPt++8iOingSAuZ2l0aHViL3dvcmtmbG93cy9wdWJsaXNoX3ZlcnNpb24ueW1s77yJCmBgYAoKIyMgQ0kg6YWN5aWXIHdvcmtmbG93CgpgLmdpdGh1Yi93b3JrZmxvd3MvcHVibGlzaF92ZXJzaW9uLnltbGAg5ZyoIGRlYnVnIOWMheaIkOWKn+WQju+8mgoxLiBgc2NwIGFwcC9idWlsZC9vdXRwdXRzL2Fway9kZWJ1Zy9hcHAtZGVidWcuYXBrIGFkbWluQDM5LjEwNC4yNy4yMTQ6L2hvbWUvYWRtaW4vYXJrcGV0X2Fway9hcmstcGV0LmFwa2AKMi4g5pu05pawIGBzZXJ2ZXIvdmVyc2lvbi1hcGkvdmVyc2lvbi5qc29uYCDlubbmj5DkuqTvvIjniYjmnKznlLEgQ0kg546v5aKD5Y+Y6YeP5rOo5YWlIGBWRVJTSU9OX05BTUVg77yJCjMuIOinpuWPkSByZWxvYWQKCiMjIOaWh+S7tuS4iuS8oOe6puWumgoKLSBBUEsg55uu5b2V77yaYC9ob21lL2FkbWluL2Fya3BldF9hcGsvYXJrLXBldC5hcGtg77yIQ0kg5q+P5qyh5Y+R54mI6KaG55uW77yJCi0g5pyN5Yqh5Lul6Z2Z5oCB5paH5Lu25ZCQ6K+l6Lev5b6ECg==
+# 初雪桌宠 · 版本 API
+
+单文件 Go 服务，部署在宿主机 `39.104.27.214:9102`，与 WS(9100)/文件服务(9101) 分开。
+
+## 接口
+
+```
+GET /api/version
+{
+  "version": "0.3.0",
+  "url": "http://39.104.27.214:9101/download/ark-pet.apk",
+  "note": "新增气泡输入框、角色树、行为开关、自动更新",
+  "force": false
+}
+```
+
+- `version` 必须严格大于桌面端 versionName 才触发更新
+- `force=true`：启动即强制更新（桌宠端会弹不可取消对话框）
+- `url` 直链 APK；桌宠端下载后走系统安装器（FileProvider 已配）
+
+## 部署步骤
+
+```bash
+# 1. 编译（需要 Go 1.21+）
+cd server/version-api && go build -o version_api .
+
+# 2. 以 systemd 托管
+sudo tee /etc/systemd/system/arkpet-version-api.service <<'EOF'
+[Unit]
+Description=ArkPet Version API
+After=network.target
+
+[Service]
+ExecStart=/usr/local/bin/version_api
+Restart=always
+Environment=PORT=9102
+Environment=APK_DIR=/home/admin/arkpet_apk
+Environment=TOKEN=your_admin_token_here
+
+[Install]
+WantedBy=multi-user.target
+EOF
+sudo systemctl enable --now arkpet-version-api
+
+# 3. CI 发版时更新 APK 和版本号（见 .github/workflows/publish_version.yml）
+```
+
+## CI 配套 workflow
+
+`.github/workflows/publish_version.yml` 在 debug 包成功后：
+1. `scp app/build/outputs/apk/debug/app-debug.apk admin@39.104.27.214:/home/admin/arkpet_apk/ark-pet.apk`
+2. 更新 `server/version-api/version.json` 并提交（版本由 CI 环境变量注入 `VERSION_NAME`）
+3. 触发 reload
+
+## 文件上传约定
+
+- APK 目录：`/home/admin/arkpet_apk/ark-pet.apk`（CI 每次发版覆盖）
+- 服务以静态文件吐该路径
