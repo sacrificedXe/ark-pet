@@ -23,16 +23,6 @@ jobs:
           java-version: '21'
           cache: gradle
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v4
-        with:
-          cmdline-tools-version: latest
-          accept-android-sdk-licenses: true
-          packages: |
-            platforms;android-34
-            build-tools;34.0.0
-            platform-tools
-
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
@@ -40,13 +30,8 @@ jobs:
         run: ./gradlew assembleDebug --no-daemon
 
       - name: Upload Debug APK
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: app-debug
           path: app/build/outputs/apk/debug/app-debug.apk
           retention-days: 7
-
-      - name: Upload APK info
-        run: |
-          ls -la app/build/outputs/apk/debug/
-          file app/build/outputs/apk/debug/app-debug.apk
