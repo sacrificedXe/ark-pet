@@ -125,15 +125,19 @@ class WsClient(private val ctx: Context, private val serverUrl: String) {
     private fun actCaptureScreen(p: JSONObject) = screen.capture(p)
     private fun actCameraCapture(p: JSONObject) = camera.photo(p)
     private fun actFilePull(p: JSONObject) = files.pull(p)
-    private fun actTransform(p: JSONObject) = act {
+    private fun actTransform(p: JSONObject): JSONObject {
         val newT = transform.copy(
             x = p.optDouble("x", transform.x.toDouble()).toFloat(),
             y = p.optDouble("y", transform.y.toDouble()).toFloat(),
             scale = p.optDouble("scale", transform.scale.toDouble()).toFloat(),
             flipX = p.optBoolean("flipX", transform.flipX),
             visible = p.optBoolean("visible", transform.visible)
-        ); transform = newT; PetOverlayService.instance?.applyTransform(newT)
-    }; sendSense(JSONObject().put("type", "transform").put("data", transformToJson()))
+        )
+        transform = newT
+        PetOverlayService.instance?.applyTransform(newT)
+        sendSense(JSONObject().put("type", "transform").put("data", transformToJson()))
+        return ok()
+    }
     private fun actSetSkin(p: JSONObject) = act { PetOverlayService.instance?.setSkin(p.optString("skin")) }
     private fun actShowChat() = act { PetOverlayService.instance?.showChatInput() }
     private fun actHideChat() = act { PetOverlayService.instance?.hideChatInput() }
