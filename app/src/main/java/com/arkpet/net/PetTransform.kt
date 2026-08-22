@@ -2,13 +2,11 @@ package com.arkpet.net
 
 import android.content.Context
 import android.content.SharedPreferences
-import kotlinx.serialization.Serializable
 
 /**
  * 桌宠变换状态：位置、缩放、朝向、显隐
  * 本地持久化到 SharedPreferences，MCP 可读写
  */
-@Serializable
 data class PetTransform(
     val x: Float = 0f,
     val y: Float = 0f,

@@ -9,6 +9,7 @@ import android.provider.MediaStore
 import android.util.Base64
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.io.ByteArrayOutputStream
@@ -29,7 +30,7 @@ class CameraTools(private val ctx: Context) {
     private val tempDir = File(ctx.cacheDir, "camera").apply { mkdirs() }
 
     /** 拍照：返回 {status, path, base64_thumb, width, height} */
-    fun photo(p: JSONObject): JSONObject = withContext(Dispatchers.IO) {
+    fun photo(p: JSONObject): JSONObject = runBlocking(Dispatchers.IO) {
         try {
             val useFront = p.optBoolean("front", false)
             val quality = p.optInt("quality", 85)

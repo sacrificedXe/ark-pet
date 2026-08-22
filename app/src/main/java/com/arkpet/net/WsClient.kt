@@ -206,9 +206,9 @@ class WsClient(private val ctx: Context, private val serverUrl: String) {
 
     private fun actTransform(p: JSONObject): JSONObject {
         val newT = transform.copy(
-            x = p.optDouble("x", transform.x).toFloat(),
-            y = p.optDouble("y", transform.y).toFloat(),
-            scale = p.optDouble("scale", transform.scale).toFloat(),
+            x = p.optDouble("x", transform.x.toDouble()).toFloat(),
+            y = p.optDouble("y", transform.y.toDouble()).toFloat(),
+            scale = p.optDouble("scale", transform.scale.toDouble()).toFloat(),
             flipX = p.optBoolean("flipX", transform.flipX),
             visible = p.optBoolean("visible", transform.visible)
         )

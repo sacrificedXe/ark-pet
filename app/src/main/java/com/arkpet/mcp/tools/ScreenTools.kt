@@ -18,6 +18,7 @@ import android.util.DisplayMetrics
 import android.util.Log
 import com.arkpet.accessibility.PetAccessibilityService
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.io.ByteArrayOutputStream
@@ -34,7 +35,7 @@ class ScreenTools(private val ctx: Context) {
     private var imageReader: ImageReader? = null
 
     /** 截图：返回 base64 JPEG（需先授权 MediaProjection） */
-    fun capture(p: JSONObject): JSONObject = withContext(Dispatchers.IO) {
+    fun capture(p: JSONObject): JSONObject = runBlocking(Dispatchers.IO) {
         if (mediaProjection == null) {
             return JSONObject().put("status", "error")
                 .put("error", "media_projection_not_granted")

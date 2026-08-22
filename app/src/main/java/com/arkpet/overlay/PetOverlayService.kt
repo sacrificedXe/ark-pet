@@ -117,16 +117,16 @@ class PetOverlayService : Service() {
 
         rootView = LayoutInflater.from(this).inflate(R.layout.overlay_pet, null)
         ivPet = rootView.findViewById(R.id.iv_pet)
-        val btnSkin = rootView.findViewById<View>(R.id.btn_skin)
 
-        // 皮肤切换：点击循环 base/snow/cloud_trail
-        btnSkin.setOnClickListener {
+        // 皮肤切换：长按桌宠循环 base/snow/cloud_trail
+        ivPet.setOnLongClickListener {
             skin = when (skin) {
                 "base" -> "snow"
                 "snow" -> "cloud_trail"
                 else -> "base"
             }
             loadAnim()
+            true
         }
 
         // 双指捏合缩放

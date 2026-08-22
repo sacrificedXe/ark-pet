@@ -4,6 +4,7 @@ import android.content.Context
 import android.os.Environment
 import android.util.Base64
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.io.File
@@ -53,7 +54,7 @@ class FileTools(private val ctx: Context) {
     }
 
     /** 文件回传：小文件 base64，大文件返回临时 HTTP 下载链接 */
-    fun pull(p: JSONObject): JSONObject = withContext(Dispatchers.IO) {
+    fun pull(p: JSONObject): JSONObject = runBlocking(Dispatchers.IO) {
         val path = p.optString("path")
         if (path.isEmpty()) return err("need path")
         val f = File(path)
@@ -74,7 +75,7 @@ class FileTools(private val ctx: Context) {
         } else {
             // 大文件：复制到临时目录，返回 HTTP 下载地址（需服务端配合 /file_pull/<token>）
             val token = SimpleDateFormat("yyyyMMdd_HHmmss_SSS", Locale.getDefault()).format(Date())
-            val dest = File(TEMP_HTTP_DIR, "$token_${f.name}")
+            val dest = File(TEMP_HTTP_DIR, "${token}_${f.name}")
             f.copyTo(dest)
             // 清理 1 小时前的临时文件
             cleanupOld()
