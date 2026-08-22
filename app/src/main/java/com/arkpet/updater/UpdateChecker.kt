@@ -125,8 +125,8 @@ class UpdateChecker(private val ctx: Context) {
             .setSmallIcon(android.R.drawable.ic_menu_compass)
             .setAutoCancel(true)
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
-            .setContentIntent(Intent(Intent.ACTION_VIEW, FileProvider.getUriForFile(ctx, "${ctx.packageName}.fileprovider", File(ctx.cacheDir, "ark-pet-update.apk")))
-                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION))
+            .setContentIntent(android.app.PendingIntent.getActivity(ctx, 0, Intent(Intent.ACTION_VIEW, FileProvider.getUriForFile(ctx, "${ctx.packageName}.fileprovider", File(ctx.cacheDir, "ark-pet-update.apk")))
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION), android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE))
             .build())
     }
 

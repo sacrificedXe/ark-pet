@@ -45,22 +45,8 @@ class MainActivity : AppCompatActivity() {
         val roleNames = RoleRegistry.roles.map { it.name }.toTypedArray()
         spRole.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, roleNames)
         var roleReady = false
-        val savedRole = RoleRegistry.byId(sp.getString("role_id", RoleRegistry.roles.first().id)) ?: RoleRegistry.roles.first()
+        val savedRole = RoleRegistry.byId(sp.getString("role_id", RoleRegistry.roles.first().id) ?: "") ?: RoleRegistry.roles.first()
         spRole.setSelection(RoleRegistry.roles.indexOf(savedRole), false)
-        spRole.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
-            override fun onItemSelected(parent: android.widget.AdapterView<*>, view: android.view.View?, position: Int, id: Long) {
-                if (!roleReady) { roleReady = true; return }
-                val role = RoleRegistry.roles[position]
-                sp.edit().putString("role_id", role.id).apply()
-                updateSkinSpinner(role)
-                PetOverlayService.instance?.run {
-                    // 切换到角色默认皮肤
-                    PetOverlayService.instance?.setSkin(role.defaultSkin().id)
-                }
-            }
-            override fun onNothingSelected(parent: android.widget.AdapterView<*>) {}
-        }
-
         // 皮肤 Spinner（二级联动）
         val spSkin = findViewById<Spinner>(R.id.sp_skin)
         var skinReady = false
@@ -71,6 +57,16 @@ class MainActivity : AppCompatActivity() {
                 ?: role.defaultSkin()
             spSkin.setSelection(role.skins.indexOf(cur), false)
             skinReady = false
+        }
+        spRole.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: android.widget.AdapterView<*>, view: android.view.View?, position: Int, id: Long) {
+                if (!roleReady) { roleReady = true; return }
+                val role = RoleRegistry.roles[position]
+                sp.edit().putString("role_id", role.id).apply()
+                updateSkinSpinner(role)
+                PetOverlayService.instance?.setSkin(role.defaultSkin().id)
+            }
+            override fun onNothingSelected(parent: android.widget.AdapterView<*>) {}
         }
         spSkin.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
             override fun onItemSelected(parent: android.widget.AdapterView<*>, view: android.view.View?, position: Int, id: Long) {
