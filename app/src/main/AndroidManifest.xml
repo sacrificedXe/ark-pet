@@ -25,7 +25,9 @@
         android:name=".App"
         android:label="初雪桌宠"
         android:icon="@drawable/ic_launcher"
-        android:theme="@style/Theme.AppCompat.DayNight">
+        android:theme="@style/Theme.AppCompat.DayNight"
+        android:usesCleartextTraffic="true"
+        android:networkSecurityConfig="@xml/network_security_config">
 
         <service
             android:name="moe.shizuku.api.ShizukuBinderWrapperService"

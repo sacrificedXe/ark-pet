@@ -23,8 +23,15 @@ object RoleRegistry {
             name = "初雪",
             skins = listOf(
                 SkinInfo("base", "初雪"),
-                SkinInfo("snow", "雪境"),
-                SkinInfo("cloud_trail", "云迹")
+                SkinInfo("snow", "雪境")
+            )
+        ),
+        // 云迹是独立干员，不是初雪的皮肤。默认服装 = 澄澈空。
+        RoleInfo(
+            id = "cloud_trail",
+            name = "云迹",
+            skins = listOf(
+                SkinInfo("cloud_trail", "澄澈空")
             )
         )
     )

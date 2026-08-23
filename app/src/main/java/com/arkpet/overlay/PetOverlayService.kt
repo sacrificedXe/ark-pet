@@ -68,8 +68,13 @@ class PetOverlayService : Service() {
         const val MIN_SCALE = 0.4f
         const val MAX_SCALE = 2.5f
         private const val TAG = "Overlay"
-        private const val DOUBLE_TAP_MS = 300L
-        private const val DRAG_SLOP_PX = 16f
+        // 双击窗口 300ms 是「两次抬手之间」的间隔上限。
+        // 单次点击时长上限单列成 TAP_MAX_MS：原实现把两者混用成同一个 300ms，
+        // 手指按住超过 300ms 再松开就既不算点击也不算双击，直接被丢弃。
+        private const val DOUBLE_TAP_MS = 320L
+        private const val TAP_MAX_MS = 500L
+        private const val LONG_PRESS_MS = 900L
+        private const val DRAG_SLOP_PX = 12f
 
         @Volatile
         var instance: PetOverlayService? = null
@@ -247,11 +252,15 @@ class PetOverlayService : Service() {
         img.layoutParams = FrameLayout.LayoutParams(sizePx, sizePx)
         img.scaleX = if (saved.flipX) -1f else 1f
 
-        img.setOnLongClickListener {
-            cycleSkin()
-            true
-        }
-        view.setOnTouchListener { _, ev -> handleTouch(ev) }
+        // 触摸监听必须挂在 ImageView 自己身上，且绝不能用 setOnLongClickListener。
+        // 原因：setOnLongClickListener 会把 ImageView 的 longClickable 置 true，
+        // View.onTouchEvent 见到 clickable||longClickable 就 return true 把事件全吃掉，
+        // 父 FrameLayout 上的 OnTouchListener 一个 MOVE 都收不到 ——
+        // 表现就是「拖不动 + 双击不出气泡」，两个症状同一个原因。
+        // 长按切皮肤改为在 handleTouch 里按住时长自行判定。
+        img.isClickable = false
+        img.isLongClickable = false
+        img.setOnTouchListener { _, ev -> handleTouch(ev) }
 
         rootView = view
         ivPet = img
@@ -292,7 +301,12 @@ class PetOverlayService : Service() {
                 if (dragging) {
                     saveTransform()
                     wsClient?.reportTransform()
-                } else if (held < DOUBLE_TAP_MS) {
+                    lastUpTime = 0L
+                } else if (held >= LONG_PRESS_MS) {
+                    // 长按切皮肤：自己判时长，不用 setOnLongClickListener（会吞掉 MOVE 事件）
+                    lastUpTime = 0L
+                    cycleSkin()
+                } else if (held < TAP_MAX_MS) {
                     if (lastUpTime > 0 && now - lastUpTime < DOUBLE_TAP_MS) {
                         lastUpTime = 0L
                         if (chatVisible) hideChatInput() else showChatInput()
@@ -310,14 +324,20 @@ class PetOverlayService : Service() {
         return true
     }
 
+    /**
+     * 长按切换：跨角色循环所有皮肤。
+     * 只在当前角色内循环的话，单皮肤角色（云迹只有澄澈空）长按会毫无反应。
+     */
     private fun cycleSkin() {
-        val skins = currentRole.skins
-        if (skins.isEmpty()) return
-        val idx = skins.indexOfFirst { it.id == currentSkin.id }.coerceAtLeast(0)
-        currentSkin = skins[(idx + 1) % skins.size]
-        PetLog.i(TAG, "长按切皮肤 → ${currentSkin.id}")
+        val all = RoleRegistry.allSkins()
+        if (all.isEmpty()) return
+        val idx = all.indexOfFirst { it.id == currentSkin.id }.coerceAtLeast(0)
+        val next = all[(idx + 1) % all.size]
+        currentSkin = next
+        currentRole = RoleRegistry.roleOfSkin(next.id) ?: currentRole
+        PetLog.i(TAG, "长按切换 → ${currentRole.name}/${currentSkin.name}")
         loadAnim(); savePrefs()
-        toast(currentSkin.name)
+        toast("${currentRole.name} · ${currentSkin.name}")
     }
 
     /**
@@ -329,9 +349,14 @@ class PetOverlayService : Service() {
         val img = ivPet ?: return
         val candidates = buildList {
             add("pet/${currentSkin.id}_$anim.webp")
+            // 先在同一皮肤内降级：跨皮肤兜底会让「云迹」显示成初雪的图，
+            // 表现为「皮肤显示出错」——比不显示更容易被误判成资源损坏。
+            add("pet/${currentSkin.id}_Relax.webp")
+            add("pet/${currentSkin.id}_Sit.webp")
+            add("pet/${currentSkin.id}_Move.webp")
             if (currentSkin.id != "base") add("pet/base_$anim.webp")
-            add("pet/base_Default.webp")
             add("pet/base_Relax.webp")
+            add("pet/base_Default.webp")
         }.distinct()
 
         val existing = candidates.firstOrNull { assetExists(it) }
@@ -372,12 +397,14 @@ class PetOverlayService : Service() {
 
     // ---------------------------------------------------------------- 对外动作
 
-    fun playAnimation(name: String, speed: Double = 1.0, loop: Boolean = true, flipX: Boolean = false) {
+    fun playAnimation(name: String, speed: Double = 1.0, loop: Boolean = true, flipX: Boolean? = null) {
         val valid = listOf("Default", "Interact", "Move", "Relax", "Sit", "Sleep", "Special")
         val target = if (name in valid) name else "Relax"
         mainHandler.post {
             anim = target
-            ivPet?.scaleX = if (flipX) -1f else 1f
+            // flipX 传 null = 保持当前朝向。原实现默认 false，会在 walkTo 里
+            // 把刚设好的「朝目标方向」硬掰回正面，走路方向和贴图永远相反。
+            if (flipX != null) ivPet?.scaleX = if (flipX) -1f else 1f
             loadAnim()
             wsClient?.reportAnim(anim)
         }

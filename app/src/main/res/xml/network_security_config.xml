@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  为什么需要这个文件：
+  Android 9（API 28）起明文流量默认被禁。targetSdk = 28 时
+  usesCleartextTraffic 的隐含默认值是 false，一切 http:// 与 ws://
+  请求会被 NetworkSecurityPolicy 直接拦死，抛
+  UnknownServiceException: CLEARTEXT communication to <host> not permitted。
+  症状是「测试连通失败」「WS 连不上」「检查更新静默无反应」——
+  三个现象同一个根因，跟服务器防火墙、端口放行没有关系。
+
+  base-config 设 true 而不是只放行某个 IP：服务器地址是用户在
+  设置界面手填的，随时可能换成内网 IP、别的公网 IP 或域名。
+  只白名单单个 IP 会让「换地址」这个正常操作重新触发同一个 bug。
+  自建服务无证书只能走明文，这是有意选择，不是疏漏。
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>
