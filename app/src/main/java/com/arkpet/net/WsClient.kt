@@ -67,11 +67,12 @@ class WsClient(private val ctx: Context, private val serverUrl: String) {
         if (pathStart < 0 || u.substring(pathStart).trim('/').isBlank()) {
             u = u.trimEnd('/') + "/ws"
         }
-        // 端口映射：9100 → 9101（旧端口兼容，保留用户协议）
+        // 端口兜底：未显式带端口时补 9100（服务端 WS 端口；9101=HTTP、9102=MCP，不可混用）
         val authEnd = u.indexOf('/', schemeEnd)
         val authority = if (authEnd < 0) u else u.substring(0, authEnd)
-        if (authority.endsWith(":9100")) {
-            u = authority.dropLast(1) + "1" + if (authEnd < 0) "" else u.substring(authEnd)
+        val hostPort = authority.substring(schemeEnd)
+        if (!hostPort.contains(':')) {
+            u = "$authority:9100" + if (authEnd < 0) "" else u.substring(authEnd)
         }
         return u
     }

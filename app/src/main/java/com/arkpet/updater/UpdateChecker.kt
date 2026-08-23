@@ -62,12 +62,17 @@ class UpdateChecker(private val ctx: Context) {
             u.startsWith("wss://", true) -> "https://" + u.substring(6)
             else -> u
         }
-        // 去掉 WS path（/ws），换端口 9100→9101
+        // 去掉 WS path（/ws）；WS 端口 9100 → HTTP 端口 9101；无端口时补 9101
         val schemeEnd = u.indexOf("://") + 3
         val pathStart = u.indexOf('/', schemeEnd)
         var hostPort = if (pathStart < 0) u else u.substring(0, pathStart)
-        if (hostPort.endsWith(":9100")) hostPort = hostPort.substring(0, hostPort.length - 4) + ":9101"
-        return if (hostPort.endsWith(":9101")) hostPort else hostPort
+        val hp = hostPort.substring(schemeEnd)
+        hostPort = when {
+            hostPort.endsWith(":9100") -> hostPort.dropLast(5) + ":9101"
+            !hp.contains(':') -> "$hostPort:9101"
+            else -> hostPort
+        }
+        return hostPort
     }
 
     /** 检查一次，新版本回调 onResult；无新无可不回调 */

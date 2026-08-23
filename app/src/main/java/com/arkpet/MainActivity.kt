@@ -107,12 +107,21 @@ class MainActivity : AppCompatActivity() {
             PetOverlayService.instance?.setBehaviorEnabled(v)
         }
 
-        // 检查更新
+        // 检查更新（手动）：命中新版直接下载安装，不只 toast
         findViewById<Button>(R.id.btn_check_update).setOnClickListener {
             val url = etUrl.text.toString().trim()
             if (url.isBlank()) { toast("请先填写服务器地址"); return@setOnClickListener }
-            UpdateChecker(this).check(url, force = true) { _ ->
-                toast("有新版本已到，请下拉通知栏安装")
+            toast("正在检查更新…")
+            UpdateChecker(this).check(url, force = true) { json ->
+                val apkUrl = json.optString("url")
+                if (apkUrl.isBlank()) {
+                    runOnUiThread { toast("服务端未提供下载地址") }
+                    return@check
+                }
+                runOnUiThread { toast("发现 ${json.optString("version")}，开始下载") }
+                UpdateChecker(this).downloadAndInstall(apkUrl, {}, { ok ->
+                    runOnUiThread { toast(if (ok) "下载完成，按提示安装" else "下载失败，看通知栏") }
+                })
             }
         }
 
