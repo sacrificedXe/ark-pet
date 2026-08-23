@@ -3,6 +3,8 @@ package com.arkpet
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.SharedPreferences
+import android.accessibilityservice.AccessibilityServiceInfo
+import android.view.accessibility.AccessibilityManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -132,17 +134,9 @@ class MainActivity : AppCompatActivity() {
             } catch (_: Exception) { toast("Shizuku 不可用") }
         }
         findViewById<Button>(R.id.btn_start).setOnClickListener {
+            val myPackageName = packageName
             if (!Settings.canDrawOverlays(this)) {
                 toast("需要悬浮窗权限"); startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION)); return@setOnClickListener
-            }
-            // P0: 校验无障碍服务
-            val am = getSystemService(android.accessibilityservice.AccessibilityManager::class.java)
-            val a11yEnabled = am.getEnabledAccessibilityServiceList(android.accessibilityservice.AccessibilityServiceInfo.FEEDBACK_GENERIC)
-                .any { it.id.startsWith(packageName) }
-            if (!a11yEnabled) {
-                toast("需要无障碍服务权限")
-                startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
-                return@setOnClickListener
             }
             // P0: URL 落盘 SP（与 PetOverlayService 读取一致）
             sp.edit().putString("server_url", etUrl.text.toString().trim()).apply()

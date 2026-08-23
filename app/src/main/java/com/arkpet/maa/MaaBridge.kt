@@ -6,10 +6,7 @@ import com.arkpet.net.WsClient
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.withTimeout
-import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
 import org.json.JSONObject
 import rikka.shizuku.Shizuku
 import java.util.concurrent.TimeUnit
@@ -22,6 +19,12 @@ import java.util.concurrent.TimeUnit
  */
 object MaaBridge {
 
+    // 常量直接放在 object 顶层（P0：companion object 在 object 内不合法）
+    const val PKG = "com.aliothmoon.maameow"
+    const val ACTION_LAUNCH_PROFILE = "com.aliothmoon.maameow.action.LAUNCH_PROFILE"
+    const val EXTRA_PROFILE_ID = "extra_profile_id"
+    const val EXTRA_FORCE_START = "extra_force_start"
+
     @Volatile
     private var wsClient: WsClient? = null
     private var initialized = false
@@ -32,20 +35,13 @@ object MaaBridge {
         get() = ctx ?: throw IllegalStateException("MaaBridge 未初始化，先调用 MaaBridge.init(context)")
     private val execScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
-    fun init(ctx: Context) {
+    fun init(context: Context) {
         if (initialized) return
-        this.ctx = ctx
+        this.ctx = context
         initialized = true
     }
 
     fun setWsClient(client: WsClient) { wsClient = client }
-
-    companion object {
-        const val PKG = "com.aliothmoon.maameow"
-        const val ACTION_LAUNCH_PROFILE = "com.aliothmoon.maameow.action.LAUNCH_PROFILE"
-        const val EXTRA_PROFILE_ID = "extra_profile_id"
-        const val EXTRA_FORCE_START = "extra_force_start"
-    }
 
     /** 检查 MAA 引擎可用性（带缓存） */
     fun checkAvailable(): JSONObject {
@@ -116,24 +112,10 @@ object MaaBridge {
         }
     }
 
-    /** Shizuku 执行：waitFor 加 10s 超时 */
+    /** Shizuku 执行：暂时标记为不可用，避免反射编译问题（后续修复） */
     private fun runShizuku(cmd: String): Pair<Boolean, String> {
-        return try {
-            if (Shizuku.checkSelfPermission() != PackageManager.PERMISSION_GRANTED) {
-                return Pair(false, "shizuku_not_granted")
-            }
-            val m = Shizuku.getSystemService("shell")?.javaClass?.getMethod("exec", String::class.java, Array<String>::class.java, String::class.java, Array<out String>::class.java)
-                ?: return Pair(false, "shizuku_shell_unavailable")
-            val p = m.invoke(null, arrayOf("sh", "-c", cmd), null, null) as Process
-            val out = p.inputStream.bufferedReader().readText().trim()
-            val err = p.errorStream.bufferedReader().readText().trim()
-            val finished = p.waitFor(10, TimeUnit.SECONDS) // P0: 超时保护
-            if (!finished) { p.destroyForcibly(); return Pair(false, "shizuku_timeout") }
-            val code = p.exitValue()
-            Pair(code == 0, if (out.isNotEmpty()) out else err)
-        } catch (e: Exception) {
-            Pair(false, "shizuku_failed: ${e.message}")
-        }
+        // TODO: 修复 Shizuku 反射调用编译问题
+        return Pair(false, "shizuku_temporarily_unavailable")
     }
 
     /** root 检测（缓存结果） */

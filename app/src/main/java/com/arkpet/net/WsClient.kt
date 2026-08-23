@@ -1,5 +1,6 @@
 package com.arkpet.net
 
+import kotlin.math.pow
 import android.content.Context
 import android.os.Build
 import android.os.Handler

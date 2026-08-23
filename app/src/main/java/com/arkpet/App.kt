@@ -27,7 +27,7 @@ class App : Application() {
     }
 
     private fun initMaaBridge() {
-        maaBridge = MaaBridge(this)
+        MaaBridge.init(this); maaBridge = MaaBridge
         // WsClient 将在 PetOverlayService 中创建并注入
     }
 
