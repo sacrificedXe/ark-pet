@@ -52,11 +52,29 @@ class UpdateChecker(private val ctx: Context) {
         }
     }
 
+    /** URL 归一化：ws(s)→http(s)；WS 端口 9100 自动换成 HTTP 端口 9101 */
+    private fun normalizeHttpUrl(raw: String): String {
+        var u = raw.trim()
+        if (u.isBlank()) return u
+        if (!u.contains("://")) u = "http://$u"
+        u = when {
+            u.startsWith("ws://", true) -> "http://" + u.substring(5)
+            u.startsWith("wss://", true) -> "https://" + u.substring(6)
+            else -> u
+        }
+        // 去掉 WS path（/ws），换端口 9100→9101
+        val schemeEnd = u.indexOf("://") + 3
+        val pathStart = u.indexOf('/', schemeEnd)
+        var hostPort = if (pathStart < 0) u else u.substring(0, pathStart)
+        if (hostPort.endsWith(":9100")) hostPort = hostPort.substring(0, hostPort.length - 4) + ":9101"
+        return if (hostPort.endsWith(":9101")) hostPort else hostPort
+    }
+
     /** 检查一次，新版本回调 onResult；无新无可不回调 */
     fun check(serverBase: String, force: Boolean = false, onResult: (JSONObject) -> Unit) {
         Thread {
             runCatching {
-                val base = serverBase.trimEnd('/')
+                val base = normalizeHttpUrl(serverBase).trimEnd('/')
                 val req = Request.Builder().url("$base/api/version").build()
                 client.newCall(req).execute().use { resp ->
                     if (!resp.isSuccessful) return@use

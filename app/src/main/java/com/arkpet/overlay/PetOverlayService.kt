@@ -64,7 +64,7 @@ class PetOverlayService : Service() {
     private var touchStartX = 0f
     private var touchStartY = 0f
     private var lastTouchTime = 0L
-    private var touchCount = 0
+    private var lastUpTime = 0L
     private var isWalking = false
     private var walkCallback: ((Boolean) -> Unit)? = null
     private var behaviorLoop: Runnable? = null
@@ -85,23 +85,37 @@ class PetOverlayService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val url = intent?.getStringExtra("server_url")
-            ?: getSharedPreferences("arkpet", MODE_PRIVATE).getString("server_url", "")
-            ?: "ws://127.0.0.1:9100/ws"
-        if (wsClient == null && url.isNotBlank()) {
-            wsClient = WsClient(this, url).also { it.connect() }
+            ?: sp().getString("server_url", "")
+            ?: ""
+        if (wsClient == null) {
+            try {
+                wsClient = WsClient(this, url).also { it.connect() }
+                // P0：创建后立即注入全局单例，供 App.getMaaBridge()/MCP 等使用
+                com.arkpet.App.instance.setWsClient(wsClient!!)
+            } catch (e: Exception) {
+                Log.e("ArkPet", "WsClient init failed: ${e.message}")
+            }
         }
-        enqueueUpdateWorker()
+        try { enqueueUpdateWorker() } catch (e: Exception) {
+            Log.e("ArkPet", "UpdateWorker enqueue failed: ${e.message}")
+        }
         return START_STICKY
     }
 
     override fun onCreate() {
         super.onCreate()
         instance = this
-        startForegroundCompat()
-        wm = getSystemService(Context.WINDOW_SERVICE) as WindowManager
-        loadPrefs()
-        setupOverlay()
-        startBehaviorLoop()
+        try {
+            startForegroundCompat()
+            wm = getSystemService(Context.WINDOW_SERVICE) as WindowManager
+            loadPrefs()
+            setupOverlay()
+            startBehaviorLoop()
+        } catch (e: Exception) {
+            Log.e("ArkPet", "overlay onCreate failed: ${e.message}", e)
+            android.widget.Toast.makeText(this, "桌宠启动失败：${e.message}", android.widget.Toast.LENGTH_LONG).show()
+            stopSelf()
+        }
     }
 
     private fun sp() = getSharedPreferences("arkpet", MODE_PRIVATE)
@@ -167,11 +181,12 @@ class PetOverlayService : Service() {
         rootView.setOnTouchListener { _, ev ->
             when (ev.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
-                    touchCount++; touchStartX = ev.rawX; touchStartY = ev.rawY
+                    touchStartX = ev.rawX; touchStartY = ev.rawY
                     lastTouchTime = System.currentTimeMillis()
                 }
                 MotionEvent.ACTION_UP -> {
-                    val dt = System.currentTimeMillis() - lastTouchTime
+                    val now = System.currentTimeMillis()
+                    val dt = now - lastTouchTime
                     val moved = hypot(ev.rawX - touchStartX, ev.rawY - touchStartY)
                     wsClient?.reportTouch(ev.rawX, ev.rawY, ev.actionMasked, dt)
                     if (moved > 20f) {
@@ -182,21 +197,33 @@ class PetOverlayService : Service() {
                         }
                         saveTransform(); wsClient?.reportTransform()
                     } else if (dt < 300L) {
-                        if (touchCount >= 2) {
+                        // 双击判定：本次 UP 距上次 UP <300ms 视为双击
+                        if (lastUpTime > 0 && now - lastUpTime < 300L) {
+                            lastUpTime = 0L
                             if (chatVisible) hideChatInput() else showChatInput()
                         } else {
-                            wsClient?.reportTouch(ev.rawX, ev.rawY, MotionEvent.ACTION_UP, dt)
+                            lastUpTime = now
                             playAnimation("Interact")
                         }
+                    } else {
+                        lastUpTime = 0L
                     }
-                    touchCount = 0
                 }
-                MotionEvent.ACTION_CANCEL -> touchCount = 0
+                MotionEvent.ACTION_CANCEL -> lastUpTime = 0L
             }
             scaleDetector.onTouchEvent(ev)
             false
         }
         wm.addView(rootView, overlayParams)
+        // P0: 启动前校验核心 asset，缺失直接停服务避免空白桌宠
+        val am = assets
+        try { am.open("pet/base_Default.webp").close() }
+        catch (_: Exception) {
+            Log.e("ArkPet", "核心 asset 缺失: pet/base_Default.webp")
+            toast("核心资源缺失，桌宠无法启动")
+            stopSelf()
+            return
+        }
         loadAnim()
     }
 

@@ -42,19 +42,56 @@ class WsClient(private val ctx: Context, private val serverUrl: String) {
     private val apps = AppTools(ctx)
     private val files = FileTools(ctx)
     private val camera = CameraTools(ctx)
-    private val maa = MaaBridge(ctx)
 
     private var transform = PetTransform.load(ctx)
     private var currentAnim = "Relax"
     private var batteryLevel = 100
 
+    private var wsFailCount = 0
+
+    /** URL 归一化：http(s)→ws(s)；无 path 补 /ws；非法 scheme 返回 null */
+    private fun normalizeWsUrl(raw: String): String? {
+        var u = raw.trim()
+        if (u.isBlank()) return null
+        if (!u.contains("://")) u = "ws://$u"
+        u = when {
+            u.startsWith("http://", true) -> "ws://" + u.substring(7)
+            u.startsWith("https://", true) -> "wss://" + u.substring(8)
+            u.startsWith("ws://", true) || u.startsWith("wss://", true) -> u
+            else -> return null
+        }
+        // 补 path：无路径或只有 / 时补 /ws（服务端 WS 路由）；trimEnd 避免尾斜杠双写
+        val schemeEnd = u.indexOf("://") + 3
+        val pathStart = u.indexOf('/', schemeEnd)
+        if (pathStart < 0 || u.substring(pathStart).trim('/').isBlank()) {
+            u = u.trimEnd('/') + "/ws"
+        }
+        // 端口映射：9100 → 9101（旧端口兼容，保留用户协议）
+        val authEnd = u.indexOf('/', schemeEnd)
+        val authority = if (authEnd < 0) u else u.substring(0, authEnd)
+        if (authority.endsWith(":9100")) {
+            u = authority.dropLast(1) + "1" + if (authEnd < 0) "" else u.substring(authEnd)
+        }
+        return u
+    }
+
     fun connect() {
-        val req = Request.Builder().url(serverUrl).build()
-        ws = client.newWebSocket(req, listener)
+        val url = normalizeWsUrl(serverUrl)
+        if (url == null) {
+            Log.e("ArkPet", "非法服务器地址: $serverUrl")
+            return
+        }
+        try {
+            val req = Request.Builder().url(url).build()
+            ws = client.newWebSocket(req, listener)
+        } catch (e: Exception) {
+            Log.e("ArkPet", "WS connect failed: ${e.message}")
+        }
     }
 
     private val listener = object : WebSocketListener() {
         override fun onOpen(webSocket: WebSocket, response: Response) {
+            wsFailCount = 0
             webSocket.send(JSONObject().apply {
                 put("type", "hello")
                 put("device", deviceId)
@@ -76,11 +113,19 @@ class WsClient(private val ctx: Context, private val serverUrl: String) {
         }
         override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
             Log.w("ArkPet", "WS fail: ${t.message}")
-            main.postDelayed({ connect() }, 3000)
+            scheduleReconnect()
         }
         override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
-            main.postDelayed({ connect() }, 3000)
+            scheduleReconnect()
         }
+    }
+
+    private fun scheduleReconnect() {
+        wsFailCount++
+        // P0: 无限指数退避（上限 60s），不再 10 次后放弃
+        val delay = (3000L * 2.0.pow(wsFailCount - 1)).toLong().coerceAtMost(60_000L)
+        main.removeCallbacksAndMessages(this)
+        main.postDelayed({ connect() }, delay)
     }
 
     private fun dispatchAct(ws: WebSocket, msg: JSONObject) {
@@ -172,10 +217,10 @@ class WsClient(private val ctx: Context, private val serverUrl: String) {
                 "file.scan" -> files.scan(params)
                 "file.pull" -> files.pull(params)
                 "camera.photo" -> camera.photo(params)
-                "maa.start" -> maa.start(params.optString("profile_id"), params.optBoolean("force_start"))
-                "maa.stop" -> maa.stop()
-                "maa.status" -> maa.status()
-                "maa.check" -> maa.checkAvailable()
+                "maa.start" -> MaaBridge.start(params.optString("profile_id"), params.optBoolean("force_start"))
+                "maa.stop" -> MaaBridge.stop()
+                "maa.status" -> MaaBridge.status()
+                "maa.check" -> MaaBridge.checkAvailable()
                 else -> JSONObject().put("status", "error").put("error", "unknown_tool:$tool")
             }
         } catch (e: Exception) {
@@ -225,7 +270,7 @@ class WsClient(private val ctx: Context, private val serverUrl: String) {
         put("scale", transform.scale); put("flipX", transform.flipX); put("visible", transform.visible)
     }
     private fun ok() = JSONObject().put("status", "ok")
-    fun stop() { ws?.close(1000, "bye"); scope.cancel() }
+    fun stop() { wsFailCount = 99; main.removeCallbacksAndMessages(null); ws?.close(1000, "bye"); scope.cancel() }
     fun getState(): JSONObject = JSONObject().apply {
         put("device_id", deviceId); put("transform", transformToJson()); put("current_anim", currentAnim); put("battery", batteryLevel)
     }

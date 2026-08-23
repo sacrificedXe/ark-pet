@@ -135,6 +135,17 @@ class MainActivity : AppCompatActivity() {
             if (!Settings.canDrawOverlays(this)) {
                 toast("需要悬浮窗权限"); startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION)); return@setOnClickListener
             }
+            // P0: 校验无障碍服务
+            val am = getSystemService(android.accessibilityservice.AccessibilityManager::class.java)
+            val a11yEnabled = am.getEnabledAccessibilityServiceList(android.accessibilityservice.AccessibilityServiceInfo.FEEDBACK_GENERIC)
+                .any { it.id.startsWith(packageName) }
+            if (!a11yEnabled) {
+                toast("需要无障碍服务权限")
+                startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+                return@setOnClickListener
+            }
+            // P0: URL 落盘 SP（与 PetOverlayService 读取一致）
+            sp.edit().putString("server_url", etUrl.text.toString().trim()).apply()
             val url = etUrl.text.toString().trim()
             val intent = Intent(this, PetOverlayService::class.java).putExtra("server_url", url)
             if (Build.VERSION.SDK_INT >= 26) startForegroundService(intent) else startService(intent)

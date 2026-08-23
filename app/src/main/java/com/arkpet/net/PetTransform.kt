@@ -26,12 +26,16 @@ data class PetTransform(
 
         fun load(ctx: Context): PetTransform {
             val sp = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            val dm = ctx.resources.displayMetrics
+            val maxX = (dm.widthPixels - 1).toFloat()
+            val maxY = (dm.heightPixels - 1).toFloat()
             return PetTransform(
-                x = sp.getFloat(KEY_X, 0f),
-                y = sp.getFloat(KEY_Y, 0f),
+                x = sp.getFloat(KEY_X, 0f).coerceIn(0f, maxX),
+                y = sp.getFloat(KEY_Y, 0f).coerceIn(0f, maxY),
                 scale = sp.getFloat(KEY_SCALE, 1f).coerceIn(MIN_SCALE, MAX_SCALE),
                 flipX = sp.getBoolean(KEY_FLIP, false),
-                visible = sp.getBoolean(KEY_VISIBLE, true)
+                // P0: 每次启动强制 visible=true，忽略持久化值（防止上次异常写 false 导致不可见）
+                visible = true
             )
         }
 
