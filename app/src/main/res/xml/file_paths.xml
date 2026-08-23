@@ -1,4 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <paths>
+    <!-- APK 下载落在 cacheDir，安装时需要经 FileProvider 授 Uri -->
     <cache-path name="cache" path="/" />
+    <!-- CameraTools 抓拍写入 getExternalFilesDir(null)/camera，不覆盖会 IllegalArgumentException -->
+    <external-files-path name="camera" path="camera/" />
+    <external-files-path name="files" path="/" />
+    <!-- PetLog 落盘路径同在 external files 下，便于导出日志 -->
+    <external-cache-path name="ext_cache" path="/" />
 </paths>

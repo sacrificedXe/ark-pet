@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="wrap_content"
+    android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="horizontal"
     android:gravity="center_vertical"
     android:background="@drawable/bg_chat"
-    android:padding="8dp">
+    android:padding="6dp">
 
     <ImageButton
         android:id="@+id/btn_close_chat"
@@ -13,17 +13,20 @@
         android:layout_height="32dp"
         android:src="@android:drawable/ic_menu_close_clear_cancel"
         android:contentDescription="关闭"
-        android:background="@android:color/transparent"/>
+        android:background="@android:color/transparent" />
 
+    <!-- weight=1 自适应宽度：固定 220dp 在 11 寸屏上会和右侧按钮挤在一起 -->
     <EditText
         android:id="@+id/et_chat_input"
-        android:layout_width="220dp"
+        android:layout_width="0dp"
+        android:layout_weight="1"
         android:layout_height="wrap_content"
         android:hint="发消息…"
         android:inputType="text"
-        android:maxLines="4"
+        android:imeOptions="actionSend"
+        android:maxLines="1"
         android:ellipsize="end"
-        android:minHeight="36dp"/>
+        android:minHeight="36dp" />
 
     <ImageButton
         android:id="@+id/btn_file_chat"
@@ -31,11 +34,12 @@
         android:layout_height="32dp"
         android:src="@android:drawable/ic_menu_gallery"
         android:contentDescription="文件"
-        android:background="@android:color/transparent"/>
+        android:background="@android:color/transparent" />
 
     <Button
         android:id="@+id/btn_send_chat"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="发送"/>
+        android:minWidth="64dp"
+        android:text="发送" />
 </LinearLayout>

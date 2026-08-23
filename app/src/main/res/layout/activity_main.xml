@@ -7,37 +7,215 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:padding="24dp">
+        android:padding="20dp">
 
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="初雪桌宠"
             android:textSize="24sp"
-            android:textStyle="bold"
-            android:layout_marginBottom="8dp"/>
+            android:textStyle="bold" />
 
-        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="连接服务器：" android:textSize="14sp"/>
-        <EditText android:id="@+id/et_server_url" android:layout_width="match_parent" android:layout_height="wrap_content"
-            android:hint="ws://服务器地址:9100/ws" android:inputType="textUri"/>
-        <Button android:id="@+id/btn_save" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="保存地址" android:layout_marginTop="8dp"/>
-        <Button android:id="@+id/btn_permission" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="授予权限" android:layout_marginTop="8dp"/>
-        <Button android:id="@+id/btn_start" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="启动桌宠" android:layout_marginTop="8dp"/>
+        <TextView
+            android:id="@+id/tv_version"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textSize="12sp"
+            android:textColor="#888888"
+            android:layout_marginBottom="12dp"
+            android:text="版本 -" />
 
-        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="角色：" android:textSize="16sp" android:layout_marginTop="24dp"/>
-        <Spinner android:id="@+id/sp_role" android:layout_width="match_parent" android:layout_height="wrap_content"/>
+        <!-- 自检面板：放最前面，打不开时第一眼就能看到缺什么 -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="运行自检"
+            android:textSize="16sp"
+            android:textStyle="bold" />
 
-        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="皮肤：" android:textSize="16sp" android:layout_marginTop="12dp"/>
-        <Spinner android:id="@+id/sp_skin" android:layout_width="match_parent" android:layout_height="wrap_content"/>
+        <TextView
+            android:id="@+id/tv_diagnostics"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textSize="12sp"
+            android:fontFamily="monospace"
+            android:lineSpacingExtra="2dp"
+            android:padding="8dp"
+            android:background="#11000000"
+            android:layout_marginTop="4dp"
+            android:text="正在检测…" />
 
-        <TextView android:id="@+id/tv_size_label" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="大小：100%" android:textSize="16sp" android:layout_marginTop="24dp"/>
-        <SeekBar android:id="@+id/sb_size" android:layout_width="match_parent" android:layout_height="wrap_content" android:max="250" android:progress="100" android:layout_marginTop="4dp"/>
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginTop="6dp">
 
-        <Switch android:id="@+id/sw_behavior" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="自主行为（待机/走路）" android:layout_marginTop="16dp"/>
-        <Button android:id="@+id/btn_check_update" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="检查更新" android:layout_marginTop="8dp"/>
+            <Button
+                android:id="@+id/btn_refresh_diag"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="wrap_content"
+                android:text="重新自检" />
 
-        <TextView android:layout_width="match_parent" android:layout_height="wrap_content"
-            android:text="提示：双击桌宠弹出消息输入框；长按桌宠切换皮肤。"
-            android:textSize="12sp" android:textColor="#888888" android:layout_marginTop="24dp"/>
+            <Button
+                android:id="@+id/btn_view_log"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="wrap_content"
+                android:text="查看日志" />
+        </LinearLayout>
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="#22000000"
+            android:layout_marginTop="16dp"
+            android:layout_marginBottom="12dp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="服务器地址"
+            android:textSize="16sp"
+            android:textStyle="bold" />
+
+        <EditText
+            android:id="@+id/et_server_url"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="ws://39.104.27.214:9100/ws"
+            android:inputType="textUri"
+            android:maxLines="1" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="WS 端口 9100，HTTP 更新端口 9101。留空也能用，只是没有远程控制。"
+            android:textSize="11sp"
+            android:textColor="#888888" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginTop="8dp">
+
+            <Button
+                android:id="@+id/btn_save"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="wrap_content"
+                android:text="保存地址" />
+
+            <Button
+                android:id="@+id/btn_test_conn"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="wrap_content"
+                android:text="测试连通" />
+        </LinearLayout>
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="#22000000"
+            android:layout_marginTop="16dp"
+            android:layout_marginBottom="12dp" />
+
+        <Button
+            android:id="@+id/btn_overlay_perm"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="1. 授予悬浮窗权限" />
+
+        <Button
+            android:id="@+id/btn_acc_perm"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="2. 开启无障碍服务"
+            android:layout_marginTop="6dp" />
+
+        <Button
+            android:id="@+id/btn_start"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="3. 启动桌宠"
+            android:layout_marginTop="6dp" />
+
+        <Button
+            android:id="@+id/btn_stop"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="停止桌宠"
+            android:layout_marginTop="6dp" />
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="#22000000"
+            android:layout_marginTop="16dp"
+            android:layout_marginBottom="12dp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="角色"
+            android:textSize="14sp" />
+
+        <Spinner
+            android:id="@+id/sp_role"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="皮肤"
+            android:textSize="14sp"
+            android:layout_marginTop="8dp" />
+
+        <Spinner
+            android:id="@+id/sp_skin"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content" />
+
+        <TextView
+            android:id="@+id/tv_size_label"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="大小：100%"
+            android:textSize="14sp"
+            android:layout_marginTop="16dp" />
+
+        <SeekBar
+            android:id="@+id/sb_size"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:max="250"
+            android:progress="100" />
+
+        <Switch
+            android:id="@+id/sw_behavior"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="自主行为（待机 / 走路）"
+            android:layout_marginTop="12dp" />
+
+        <Button
+            android:id="@+id/btn_check_update"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="检查更新"
+            android:layout_marginTop="12dp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="双击桌宠弹出输入框，长按切换皮肤，拖动移动位置。"
+            android:textSize="11sp"
+            android:textColor="#888888"
+            android:layout_marginTop="16dp"
+            android:layout_marginBottom="24dp" />
     </LinearLayout>
 </ScrollView>

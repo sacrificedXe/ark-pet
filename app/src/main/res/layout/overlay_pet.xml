@@ -1,9 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<!--
+  根必须是 FrameLayout：LinearLayout 会把子 View 的 LayoutParams 硬转成
+  LinearLayout.LayoutParams，代码里动态换 LayoutParams 时会 ClassCastException 崩溃。
+-->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/pet_root"
     android:layout_width="wrap_content"
     android:layout_height="wrap_content"
-    android:orientation="horizontal"
-    android:gravity="bottom"
     android:background="@android:color/transparent">
 
     <ImageView
@@ -11,5 +14,5 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:adjustViewBounds="true"
-        android:contentDescription="初雪桌宠" />
-</LinearLayout>
+        android:contentDescription="桌宠" />
+</FrameLayout>

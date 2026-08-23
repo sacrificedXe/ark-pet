@@ -1,12 +1,13 @@
 package com.arkpet.updater
 
-import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import androidx.core.app.NotificationCompat
 import androidx.core.content.FileProvider
+import com.arkpet.util.PetLog
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONObject
@@ -14,152 +15,271 @@ import java.io.File
 import java.util.concurrent.TimeUnit
 
 /**
- * 更新检查 + 下载 + 安装。
- * 服务端契约：GET {serverBase}/api/version -> {"version":"x.y.z","url":"...","note":"...","force":false}
- * 语义比较：逐段 int 比较，服务端 version 必须严格大于当前才通知。
+ * 更新检查 / 下载 / 安装。
+ *
+ * 服务端契约：GET {httpBase}/api/version →
+ *   {"version":"0.4.0","url":"http://host:9101/apk/ark-pet.apk","note":"...","force":false}
+ *
+ * 重写要点：
+ * 1. URL 归一化用字符串切分明确处理 scheme/host/port/path，不再用 dropLast 数字符。
+ *    原实现 `hostPort.dropLast(5) + ":9101"` 在没带端口时会砍掉主机名尾部，产出 `::9101`
+ *    这种畸形 URL，OkHttp 直接抛异常且被 runCatching 静默吞掉——一个永远不报错的死循环。
+ * 2. 失败必须有回声：新增 onNone 回调，把「已是最新 / HTTP 4xx / 网络异常」都回报到 UI，
+ *    并全部落盘。静默失败是上一版最大的问题。
+ * 3. 下载先写 .tmp 再 rename，避免半截 APK 被当成完整包去安装。
  */
 class UpdateChecker(private val ctx: Context) {
 
     private val client = OkHttpClient.Builder()
         .connectTimeout(10, TimeUnit.SECONDS)
-        .readTimeout(60, TimeUnit.SECONDS)
+        .readTimeout(120, TimeUnit.SECONDS)
         .build()
 
     companion object {
+        private const val TAG = "Updater"
         private const val CHANNEL_ID = "arkpet_update"
-        private const val NOTIF_ID_UPDATE = 1001
-        private const val NOTIF_ID_INSTALL = 1002
-        private const val KEY_SERVER = "server_url"
-        private const val KEY_LAST_CHECK_VERSION = "last_check_version"
+        private const val NOTIF_ID = 1001
+        const val APK_NAME = "ark-pet-update.apk"
+
+        /** WS 端口 → HTTP 端口的映射；服务端 9100=WS / 9101=HTTP / 9102=MCP */
+        private const val WS_PORT = 9100
+        private const val HTTP_PORT = 9101
 
         fun semanticCompare(a: String, b: String): Int {
-            val sa = a.split('.').map { try { it.toInt() } catch (e: NumberFormatException) { 0 } }
-            val sb = b.split('.').map { try { it.toInt() } catch (e: NumberFormatException) { 0 } }
-            val len = maxOf(sa.size, sb.size)
-            for (i in 0 until len) {
-                val x = if (i < sa.size) sa[i] else 0
-                val y = if (i < sb.size) sb[i] else 0
+            fun parse(s: String) = s.trim().split('.', '-', '_')
+                .map { seg -> seg.takeWhile { it.isDigit() }.toIntOrNull() ?: 0 }
+            val sa = parse(a); val sb = parse(b)
+            for (i in 0 until maxOf(sa.size, sb.size)) {
+                val x = sa.getOrElse(i) { 0 }
+                val y = sb.getOrElse(i) { 0 }
                 if (x != y) return x - y
             }
             return 0
+        }
+
+        /**
+         * 把用户填的任意地址（ws/wss/http/https、带或不带端口、带或不带 /ws）
+         * 归一化成 HTTP API 基址，形如 http://host:9101（不含尾斜杠、不含 path）。
+         */
+        fun httpBaseOf(raw: String): String {
+            var u = raw.trim()
+            if (u.isBlank()) return ""
+            if (!u.contains("://")) u = "http://$u"
+
+            val lower = u.lowercase()
+            val scheme = when {
+                lower.startsWith("wss://") -> "https"
+                lower.startsWith("ws://") -> "http"
+                lower.startsWith("https://") -> "https"
+                else -> "http"
+            }
+            val rest = u.substringAfter("://")
+            // 只取 authority，path/query 全丢
+            val authority = rest.substringBefore('/').substringBefore('?')
+
+            // IPv6 字面量形如 [::1]:9100，冒号计数法会误判，单独处理
+            val host: String
+            val port: Int?
+            if (authority.startsWith("[")) {
+                host = authority.substringBefore(']') + "]"
+                val tail = authority.substringAfter(']')
+                port = if (tail.startsWith(":")) tail.drop(1).toIntOrNull() else null
+            } else {
+                host = authority.substringBefore(':')
+                port = authority.substringAfter(':', "").toIntOrNull()
+            }
+            if (host.isBlank()) return ""
+
+            val finalPort = when (port) {
+                null -> HTTP_PORT      // 没写端口：默认 HTTP 端口
+                WS_PORT -> HTTP_PORT   // 写的是 WS 端口：换成 HTTP 端口
+                else -> port           // 用户明确指定：尊重原值
+            }
+            return "$scheme://$host:$finalPort"
         }
     }
 
     init {
         val nm = ctx.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         if (android.os.Build.VERSION.SDK_INT >= 26) {
-            nm.createNotificationChannel(NotificationChannel(CHANNEL_ID, "更新", android.app.NotificationManager.IMPORTANCE_LOW))
+            nm.createNotificationChannel(
+                NotificationChannel(CHANNEL_ID, "更新", NotificationManager.IMPORTANCE_LOW)
+            )
         }
     }
 
-    /** URL 归一化：ws(s)→http(s)；WS 端口 9100 自动换成 HTTP 端口 9101 */
-    private fun normalizeHttpUrl(raw: String): String {
-        var u = raw.trim()
-        if (u.isBlank()) return u
-        if (!u.contains("://")) u = "http://$u"
-        u = when {
-            u.startsWith("ws://", true) -> "http://" + u.substring(5)
-            u.startsWith("wss://", true) -> "https://" + u.substring(6)
-            else -> u
-        }
-        // 去掉 WS path（/ws）；WS 端口 9100 → HTTP 端口 9101；无端口时补 9101
-        val schemeEnd = u.indexOf("://") + 3
-        val pathStart = u.indexOf('/', schemeEnd)
-        var hostPort = if (pathStart < 0) u else u.substring(0, pathStart)
-        val hp = hostPort.substring(schemeEnd)
-        hostPort = when {
-            hostPort.endsWith(":9100") -> hostPort.dropLast(5) + ":9101"
-            !hp.contains(':') -> "$hostPort:9101"
-            else -> hostPort
-        }
-        return hostPort
-    }
+    private fun currentVersion(): String = runCatching {
+        ctx.packageManager.getPackageInfo(ctx.packageName, 0).versionName ?: "0.0.0"
+    }.getOrDefault("0.0.0")
 
-    /** 检查一次，新版本回调 onResult；无新无可不回调 */
-    fun check(serverBase: String, force: Boolean = false, onResult: (JSONObject) -> Unit) {
+    /**
+     * @param force true 时忽略版本比较，命中即回调（手动「检查更新」用）
+     * @param onNone 无更新或失败时的原因回报，UI 可直接 toast
+     * @param onUpdate 有更新时回调，参数为服务端 JSON（url 已补成绝对地址）
+     */
+    fun check(
+        serverBase: String,
+        force: Boolean = false,
+        onNone: (String) -> Unit = {},
+        onUpdate: (JSONObject) -> Unit
+    ) {
         Thread {
-            runCatching {
-                val base = normalizeHttpUrl(serverBase).trimEnd('/')
-                val req = Request.Builder().url("$base/api/version").build()
-                client.newCall(req).execute().use { resp ->
-                    if (!resp.isSuccessful) return@use
-                    val json = JSONObject(resp.body?.string() ?: "{}")
-                    val remoteVer = json.optString("version")
-                    if (remoteVer.isBlank()) return@runCatching
-                    val current = ctx.packageManager.getPackageInfo(ctx.packageName, 0).versionName
-                    if (!force && semanticCompare(remoteVer, current) <= 0) return@runCatching
-                    // 记录已查看，避免重复弹窗
-                    ctx.getSharedPreferences("arkpet_update", Context.MODE_PRIVATE)
-                        .edit().putString(KEY_LAST_CHECK_VERSION, remoteVer).apply()
-                    onResult(json)
+            val base = httpBaseOf(serverBase)
+            if (base.isBlank()) {
+                PetLog.e(TAG, "地址无法解析: $serverBase")
+                onNone("服务器地址无法解析"); return@Thread
+            }
+            val api = "$base/api/version"
+            PetLog.i(TAG, "查更新 → $api (当前 ${currentVersion()})")
+            try {
+                client.newCall(Request.Builder().url(api).build()).execute().use { resp ->
+                    if (!resp.isSuccessful) {
+                        PetLog.w(TAG, "查更新 HTTP ${resp.code}")
+                        onNone("服务器返回 HTTP ${resp.code}"); return@use
+                    }
+                    val body = resp.body?.string().orEmpty()
+                    val json = runCatching { JSONObject(body) }.getOrElse {
+                        PetLog.e(TAG, "响应非 JSON: ${body.take(120)}")
+                        onNone("服务器响应不是 JSON"); return@use
+                    }
+                    val remote = json.optString("version")
+                    if (remote.isBlank()) { onNone("服务器未返回版本号"); return@use }
+
+                    val cur = currentVersion()
+                    val diff = semanticCompare(remote, cur)
+                    PetLog.i(TAG, "远端 $remote / 本地 $cur / diff=$diff / force=$force")
+                    if (!force && diff <= 0) { onNone("已是最新版本 $cur"); return@use }
+                    if (force && diff <= 0) {
+                        onNone("服务器版本 $remote，未高于本机 $cur"); return@use
+                    }
+
+                    // 服务端可能给相对路径，补成绝对地址，免得 OkHttp 抛 IllegalArgumentException
+                    val rawUrl = json.optString("url")
+                    val absUrl = when {
+                        rawUrl.isBlank() -> "$base/apk/ark-pet.apk"
+                        rawUrl.startsWith("http", true) -> rawUrl
+                        else -> "$base/${rawUrl.trimStart('/')}"
+                    }
+                    json.put("url", absUrl)
+                    onUpdate(json)
                 }
-            }.onFailure { e -> /* 静默失败，下次再试 */ }
+            } catch (e: Exception) {
+                PetLog.e(TAG, "查更新失败", e)
+                onNone("连接失败：${e.javaClass.simpleName}")
+            }
         }.start()
     }
 
     fun downloadAndInstall(url: String, onProgress: (Int) -> Unit, onDone: (Boolean) -> Unit) {
         Thread {
-            val file = File(ctx.cacheDir, "ark-pet-update.apk")
-            runCatching {
-                val req = Request.Builder().url(url).build()
-                client.newCall(req).execute().use { resp ->
-                    if (!resp.isSuccessful) { notifyProgress("下载失败：${resp.code}"); onDone(false); return@use }
-                    val body = resp.body ?: run { onDone(false); return@use }
-                    val total = body.contentLength().coerceAtLeast(1L)
+            val tmp = File(ctx.cacheDir, "$APK_NAME.tmp")
+            val target = File(ctx.cacheDir, APK_NAME)
+            PetLog.i(TAG, "开始下载 $url")
+            notify("正在下载更新…")
+            try {
+                client.newCall(Request.Builder().url(url).build()).execute().use { resp ->
+                    if (!resp.isSuccessful) {
+                        PetLog.e(TAG, "下载失败 HTTP ${resp.code}")
+                        notify("下载失败：HTTP ${resp.code}")
+                        onDone(false); return@Thread
+                    }
+                    val body = resp.body ?: run {
+                        notify("下载失败：响应为空"); onDone(false); return@Thread
+                    }
+                    val total = body.contentLength()
                     var done = 0L
+                    var lastPct = -1
                     body.byteStream().use { input ->
-                        file.outputStream().use { output ->
-                            val buf = ByteArray(8192)
+                        tmp.outputStream().use { out ->
+                            val buf = ByteArray(64 * 1024)
                             while (true) {
                                 val n = input.read(buf)
                                 if (n <= 0) break
-                                output.write(buf, 0, n)
+                                out.write(buf, 0, n)
                                 done += n
-                                onProgress((done * 100 / total).toInt())
+                                if (total > 0) {
+                                    val pct = (done * 100 / total).toInt()
+                                    if (pct != lastPct) { lastPct = pct; onProgress(pct) }
+                                }
                             }
                         }
                     }
+                    if (done < 1024) {
+                        PetLog.e(TAG, "下载内容过小 ($done B)，判定失败")
+                        notify("下载失败：文件不完整")
+                        tmp.delete(); onDone(false); return@Thread
+                    }
                 }
-                notifyProgress("下载完成，点击安装")
-                install(file)
+                if (target.exists()) target.delete()
+                if (!tmp.renameTo(target)) {
+                    tmp.copyTo(target, overwrite = true); tmp.delete()
+                }
+                PetLog.i(TAG, "下载完成 ${target.length()} bytes → ${target.absolutePath}")
+                notifyInstall()
+                install(target)
                 onDone(true)
-            }.onFailure { e ->
-                notifyProgress("安装失败：${e.message}")
+            } catch (e: Exception) {
+                PetLog.e(TAG, "下载/安装异常", e)
+                notify("更新失败：${e.javaClass.simpleName}")
+                runCatching { tmp.delete() }
                 onDone(false)
             }
         }.start()
     }
 
-    private fun notifyProgress(text: String) {
-        val nm = ctx.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        nm.notify(NOTIF_ID_UPDATE, NotificationCompat.Builder(ctx, CHANNEL_ID)
-            .setContentTitle("初雪桌宠")
-            .setContentText(text)
-            .setSmallIcon(android.R.drawable.ic_menu_upload)
-            .setPriority(NotificationCompat.PRIORITY_LOW)
-            .build())
+    private fun install(file: File) {
+        try {
+            val uri = FileProvider.getUriForFile(ctx, "${ctx.packageName}.fileprovider", file)
+            val intent = Intent(Intent.ACTION_VIEW).apply {
+                setDataAndType(uri, "application/vnd.android.package-archive")
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            ctx.startActivity(intent)
+            PetLog.i(TAG, "已拉起安装器")
+        } catch (e: Exception) {
+            // 拉不起安装器时通知栏那条仍可点，不算彻底失败
+            PetLog.e(TAG, "拉起安装器失败，请点通知栏", e)
+        }
+    }
+
+    private fun notify(text: String) {
+        runCatching {
+            val nm = ctx.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            nm.notify(
+                NOTIF_ID,
+                NotificationCompat.Builder(ctx, CHANNEL_ID)
+                    .setContentTitle("初雪桌宠更新")
+                    .setContentText(text)
+                    .setSmallIcon(android.R.drawable.stat_sys_download)
+                    .setPriority(NotificationCompat.PRIORITY_LOW)
+                    .build()
+            )
+        }
     }
 
     private fun notifyInstall() {
-        val nm = ctx.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        nm.notify(NOTIF_ID_INSTALL, NotificationCompat.Builder(ctx, CHANNEL_ID)
-            .setContentTitle("更新就绪")
-            .setContentText("点击安装新版本")
-            .setSmallIcon(android.R.drawable.ic_menu_compass)
-            .setAutoCancel(true)
-            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
-            .setContentIntent(android.app.PendingIntent.getActivity(ctx, 0, Intent(Intent.ACTION_VIEW, FileProvider.getUriForFile(ctx, "${ctx.packageName}.fileprovider", File(ctx.cacheDir, "ark-pet-update.apk")))
-                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION), android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE))
-            .build())
-    }
-
-    private fun install(file: File) {
-        val uri = FileProvider.getUriForFile(ctx, "${ctx.packageName}.fileprovider", file)
-        val intent = Intent(Intent.ACTION_VIEW).apply {
-            setDataAndType(uri, "application/vnd.android.package-archive")
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        runCatching {
+            val file = File(ctx.cacheDir, APK_NAME)
+            val uri = FileProvider.getUriForFile(ctx, "${ctx.packageName}.fileprovider", file)
+            val pi = PendingIntent.getActivity(
+                ctx, 0,
+                Intent(Intent.ACTION_VIEW)
+                    .setDataAndType(uri, "application/vnd.android.package-archive")
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION),
+                PendingIntent.FLAG_UPDATE_CURRENT or
+                    (if (android.os.Build.VERSION.SDK_INT >= 23) PendingIntent.FLAG_IMMUTABLE else 0)
+            )
+            val nm = ctx.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            nm.notify(
+                NOTIF_ID,
+                NotificationCompat.Builder(ctx, CHANNEL_ID)
+                    .setContentTitle("更新已就绪")
+                    .setContentText("点击安装新版本")
+                    .setSmallIcon(android.R.drawable.stat_sys_download_done)
+                    .setAutoCancel(true)
+                    .setContentIntent(pi)
+                    .build()
+            )
         }
-        ctx.startActivity(intent)
     }
 }
-

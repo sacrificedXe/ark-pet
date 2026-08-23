@@ -11,8 +11,8 @@ android {
         applicationId = "com.arkpet"
         minSdk = 28
         targetSdk = 28
-        versionCode = 4
-        versionName = "0.3.2"
+        versionCode = 5
+        versionName = "0.4.0"
     }
 
     buildTypes {
