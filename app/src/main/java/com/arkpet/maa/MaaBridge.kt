@@ -27,6 +27,9 @@ object MaaBridge {
     private var initialized = false
     private var rootCache: Boolean? = null
     private var shizukuCache: Boolean? = null
+    private var ctx: Context? = null
+    private val context
+        get() = ctx ?: throw IllegalStateException("MaaBridge 未初始化，先调用 MaaBridge.init(context)")
     private val execScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     fun init(ctx: Context) {
@@ -34,10 +37,6 @@ object MaaBridge {
         this.ctx = ctx
         initialized = true
     }
-
-    private var ctx: Context? = null
-    private val context
-        get() = ctx ?: throw IllegalStateException("MaaBridge 未初始化，先调用 MaaBridge.init(context)")
 
     fun setWsClient(client: WsClient) { wsClient = client }
 
@@ -81,21 +80,14 @@ object MaaBridge {
         return JSONObject().put("status", if (ok) "ok" else "error").put("output", out)
     }
 
-    /** 强制停止 MAA-Meow */
     fun stop(): JSONObject {
         reportMaa("stopping", "")
-        val (ok, out) = exec("am force-stop $PKG")
-        reportMaa(if (ok) "stopped" else "stop_failed", out)
-        return JSONObject().put("status", if (ok) "ok" else "error").put("output", out)
+        exec("am force-stop $PKG")
+        reportMaa("stopped", "")
+        return JSONObject().put("status", "ok")
     }
 
-    /** 查询 MAA-Meow 是否在运行 */
-    fun status(): JSONObject {
-        val (ok, out) = exec("pidof $PKG")
-        val running = ok && out.trim().isNotEmpty()
-        reportMaa("status_query", if (running) "running pid=$out" else "not_running")
-        return JSONObject().put("running", running).put("pid", if (running) out.trim() else "")
-    }
+    fun status(): JSONObject = checkAvailable()
 
     /** 双通道执行：优先 root(su)，其次 Shizuku（带通道缓存与超时） */
     private fun exec(cmd: String): Pair<Boolean, String> {
@@ -130,10 +122,8 @@ object MaaBridge {
             if (Shizuku.checkSelfPermission() != PackageManager.PERMISSION_GRANTED) {
                 return Pair(false, "shizuku_not_granted")
             }
-            val m = Shizuku::class.java.getMethod(
-                "newProcess",
-                Array<String>::class.java, Array<String>::class.java, String::class.java
-            )
+            val m = Shizuku.getSystemService("shell")?.javaClass?.getMethod("exec", String::class.java, Array<String>::class.java, String::class.java, Array<out String>::class.java)
+                ?: return Pair(false, "shizuku_shell_unavailable")
             val p = m.invoke(null, arrayOf("sh", "-c", cmd), null, null) as Process
             val out = p.inputStream.bufferedReader().readText().trim()
             val err = p.errorStream.bufferedReader().readText().trim()

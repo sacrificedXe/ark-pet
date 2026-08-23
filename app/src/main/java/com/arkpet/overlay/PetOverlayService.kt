@@ -216,7 +216,7 @@ class PetOverlayService : Service() {
         }
         wm.addView(rootView, overlayParams)
         // P0: 启动前校验核心 asset，缺失直接停服务避免空白桌宠
-        val am = assets
+        val am = applicationContext.assets
         try { am.open("pet/base_Default.webp").close() }
         catch (_: Exception) {
             Log.e("ArkPet", "核心 asset 缺失: pet/base_Default.webp")
