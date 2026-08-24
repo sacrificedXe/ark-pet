@@ -11,8 +11,8 @@ android {
         applicationId = "com.arkpet"
         minSdk = 28
         targetSdk = 28
-        versionCode = 8
-        versionName = "0.4.3"
+        versionCode = 9
+        versionName = "0.4.4"
     }
 
     buildTypes {
@@ -31,5 +31,9 @@ dependencies {
     // 图片解码改用平台 ImageDecoder（API 28+），Glide 不再需要：
     // Glide 4.16 本体没有动画 WebP 解码器，多帧 VP8X 只解第一帧，动作会定格。
     implementation("dev.rikka.shizuku:api:13.1.5")
+    // provider 是独立 artifact。上一版只加了 api 就在 manifest 声明
+    // rikka.shizuku.ShizukuProvider，类不在包里 → App 启动实例化 provider 时
+    // ClassNotFoundException → 进程当场死，表现为「一打开就闪退」。
+    implementation("dev.rikka.shizuku:provider:13.1.5")
     implementation("androidx.work:work-runtime-ktx:2.9.0")
 }
