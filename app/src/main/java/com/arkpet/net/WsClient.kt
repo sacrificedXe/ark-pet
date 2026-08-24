@@ -33,12 +33,17 @@ import kotlin.math.pow
  *    也避免 onFailure/onClosed 同时触发导致重连任务翻倍指数增长。
  * 3. 每一步都落盘：握手成功、失败原因、重连间隔。之前 WS 连不上时日志里什么都没有。
  * 4. 收到未知 action 明确回错误，不静默丢弃。
+ *
+ * v0.4.5 新增：
+ * 5. 归一化后显式补全 path="/ws"（服务端 websockets.serve 默认不匹配裸域名），
+ *    并打印握手 HTTP 状态码与响应头，排查 426 Upgrade Required。
  */
 class WsClient(private val ctx: Context, private val serverUrl: String) {
 
     companion object {
         private const val TAG = "WsClient"
         private const val WS_DEFAULT_PORT = 9100
+        private const val WS_PATH = "ws"
 
         /**
          * 归一化 WS 地址。规则：
@@ -77,7 +82,7 @@ class WsClient(private val ctx: Context, private val serverUrl: String) {
             }
             if (host.isBlank()) return null
 
-            if (path.trim('/').isBlank()) path = "ws"
+            if (path.trim('/').isBlank()) path = WS_PATH
             return "$scheme://$host:${port ?: WS_DEFAULT_PORT}/$path"
         }
     }
@@ -138,7 +143,9 @@ class WsClient(private val ctx: Context, private val serverUrl: String) {
             failCount = 0
             connected = true
             lastError = ""
-            PetLog.i(TAG, "握手成功 HTTP ${response.code}，上报 hello device=$deviceId")
+            // 打印完整响应头，排查 426/400 等握手失败
+            val headers = response.headers().toMultimap().map { "${it.key}: ${it.value.joinToString(", ")}" }.joinToString("; ")
+            PetLog.i(TAG, "握手成功 HTTP ${response.code} [$headers]，上报 hello device=$deviceId")
             webSocket.send(
                 JSONObject().apply {
                     put("type", "hello")
@@ -171,8 +178,11 @@ class WsClient(private val ctx: Context, private val serverUrl: String) {
 
         override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
             connected = false
-            lastError = "${t.javaClass.simpleName}: ${t.message}" +
-                (response?.let { " (HTTP ${it.code})" } ?: "")
+            val respInfo = response?.let {
+                val hs = it.headers().toMultimap().map { "${it.key}: ${it.value.joinToString(", ")}" }.joinToString("; ")
+                " HTTP ${it.code} [$hs]"
+            } ?: ""
+            lastError = "${t.javaClass.simpleName}: ${t.message}$respInfo"
             PetLog.w(TAG, "连接失败 $lastError")
             scheduleReconnect()
         }

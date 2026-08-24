@@ -41,7 +41,11 @@ import com.arkpet.net.PetTransform
 import com.arkpet.net.WsClient
 import com.arkpet.updater.UpdateWorker
 import com.arkpet.util.PetLog
+import java.util.concurrent.ConcurrentLinkedQueue
+import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicReference
 import kotlin.math.abs
 import kotlin.math.hypot
 
@@ -57,6 +61,12 @@ import kotlin.math.hypot
  * 4. 首帧位置不用 (0,0)：状态栏/挖孔区域可能完全盖住，默认落在右侧中部。
  * 5. WsClient 连不上不影响桌宠显示：网络是可选功能，显示是核心功能，两者解耦。
  * 6. 拖动改成 ACTION_MOVE 实时跟手（原实现只在 UP 时跳一次，手感像卡顿）。
+ *
+ * v0.4.5 新增：
+ * 7. 动作队列 + 优先级：用户交互(100) > 走路到达(80) > 自主行为(10)。同优先级先进先出。
+ *    playAnimation/ walkTo/ behaviorLoop 统一入队，执行前显式 stop 当前 AnimatedImageDrawable 并清理
+ *    ImageView pivot/scale/translation，防止切动画残留变换导致偏移。
+ * 8. WS 路径显式 /ws，握手失败打印完整 HTTP 响应码。
  */
 class PetOverlayService : Service() {
 
@@ -78,6 +88,11 @@ class PetOverlayService : Service() {
         // Drawable 缓存上限。单个 webp 解出来占几十 MB，缓存太多会 OOM
         private const val ANIM_CACHE_MAX = 4
 
+        // 动作优先级：越大越优先
+        private const val PRIO_USER = 100   // 用户点击/长按/双击触发的 Interact/Special
+        private const val PRIO_WALK_ARRIVE = 80 // walkTo 到达回 Relax
+        private const val PRIO_AUTO = 10    // 自主行为 Sit/Sleep/Relax/Walk
+
         @Volatile
         var instance: PetOverlayService? = null
             private set
@@ -85,10 +100,15 @@ class PetOverlayService : Service() {
 
     private val mainHandler = Handler(Looper.getMainLooper())
     // webp 解码放后台：cloud_trail_Sleep 有 120 帧、2MB，主线程解会卡住整个悬浮窗
-    private val decodeScope = java.util.concurrent.Executors.newSingleThreadExecutor()
+    private val decodeScope = Executors.newSingleThreadExecutor()
     private var currentAnimDrawable: AnimatedImageDrawable? = null
     // 已解码的 Drawable 缓存，避免同一动作反复解码
     private val animCache = LinkedHashMap<String, Drawable>()
+
+    // 动作队列：(priority, sequence, actionName, flipX, speed, loop, onComplete)
+    private val animQueue = ConcurrentLinkedQueue<AnimTask>()
+    private var animSeq = 0L
+    private val isAnimPlaying = AtomicBoolean(false)
 
     private var wm: WindowManager? = null
     private var rootView: View? = null
@@ -119,6 +139,17 @@ class PetOverlayService : Service() {
     private var chatVisible = false
 
     private var overlayReady = false
+
+    /** 动作任务：优先级高者先执行，同优先级按序号 FIFO */
+    private data class AnimTask(
+        val priority: Int,
+        val seq: Long,
+        val name: String,
+        val flipX: Boolean?,
+        val speed: Double,
+        val loop: Boolean,
+        val onComplete: (() -> Unit)?
+    )
 
     // ---------------------------------------------------------------- 生命周期
 
@@ -174,6 +205,9 @@ class PetOverlayService : Service() {
         PetLog.i(TAG, "onDestroy")
         instance = null
         behaviorLoop?.let { mainHandler.removeCallbacks(it) }
+        // 清空动画队列并停止当前动画
+        animQueue.clear()
+        isAnimPlaying.set(false)
         stopCurrentAnim()
         synchronized(animCache) { animCache.clear() }
         runCatching { decodeScope.shutdownNow() }
@@ -459,20 +493,156 @@ class PetOverlayService : Service() {
         applicationContext.assets.open(path).close(); true
     } catch (_: Exception) { false }
 
-    // ---------------------------------------------------------------- 对外动作
+    // ---------------------------------------------------------------- 对外动作（入队）
 
-    fun playAnimation(name: String, speed: Double = 1.0, loop: Boolean = true, flipX: Boolean? = null) {
+    fun playAnimation(name: String, speed: Double = 1.0, loop: Boolean = true, flipX: Boolean? = null, priority: Int = PRIO_USER) {
         val valid = listOf("Default", "Interact", "Move", "Relax", "Sit", "Sleep", "Special")
         val target = if (name in valid) name else "Relax"
+        enqueueAnim(target, priority, flipX, speed, loop, null)
+    }
+
+    private fun enqueueAnim(name: String, priority: Int, flipX: Boolean?, speed: Double, loop: Boolean, onComplete: (() -> Unit)?) {
         mainHandler.post {
-            anim = target
-            // flipX 传 null = 保持当前朝向。原实现默认 false，会在 walkTo 里
-            // 把刚设好的「朝目标方向」硬掰回正面，走路方向和贴图永远相反。
-            if (flipX != null) ivPet?.scaleX = if (flipX) -1f else 1f
-            loadAnim()
-            wsClient?.reportAnim(anim)
+            val seq = animSeq++
+            animQueue.offer(AnimTask(priority, seq, name, flipX, speed, loop, onComplete))
+            // 按优先级降序、序号升序排序（ConcurrentLinkedQueue 不支持排序，转 List 排完再重建）
+            val sorted = animQueue.toMutableList().sortedWith(compareByDescending<AnimTask> { it.priority }.thenBy { it.seq })
+            animQueue.clear()
+            sorted.forEach { animQueue.offer(it) }
+            tryRunNextAnim()
         }
     }
+
+    /** 取队头执行；正在播放时不抢占，等 onAnimationEnd 回调里再取下一个 */
+    private fun tryRunNextAnim() {
+        if (isAnimPlaying.get()) return
+        val task = animQueue.poll() ?: return
+        runAnimTask(task)
+    }
+
+    private fun runAnimTask(task: AnimTask) {
+        isAnimPlaying.set(true)
+        val img = ivPet ?: run { isAnimPlaying.set(false); tryRunNextAnim(); return }
+        // 关键：切动画前显式清理 ImageView 残留变换，防止不同 webp anchor 导致偏移
+        img.pivotX = 0f; img.pivotY = 0f
+        img.translationX = 0f; img.translationY = 0f
+        img.rotation = 0f
+        // scaleX 由 flipX 决定，不归零
+        if (task.flipX != null) img.scaleX = if (task.flipX!!) -1f else 1f
+
+        anim = task.name
+        val candidates = buildList {
+            add("pet/${currentSkin.id}_${task.name}.webp")
+            add("pet/${currentSkin.id}_Relax.webp")
+            add("pet/${currentSkin.id}_Sit.webp")
+            add("pet/${currentSkin.id}_Move.webp")
+            if (currentSkin.id != "base") add("pet/base_${task.name}.webp")
+            add("pet/base_Relax.webp")
+            add("pet/base_Default.webp")
+        }.distinct()
+
+        val existing = candidates.firstOrNull { assetExists(it) }
+        if (existing == null) {
+            PetLog.e(TAG, "全部候选资源均缺失: $candidates，降级为占位色块")
+            stopCurrentAnim()
+            img.setImageDrawable(null)
+            img.setBackgroundColor(0x88FF6688.toInt())
+            toast("动画资源缺失，已显示占位块")
+            isAnimPlaying.set(false)
+            tryRunNextAnim()
+            task.onComplete?.invoke()
+            return
+        }
+        if (existing != candidates.first()) {
+            PetLog.w(TAG, "资源降级: ${candidates.first()} 缺失 → $existing")
+        }
+        img.setBackgroundColor(0x00000000)
+
+        val loadedFor = task.name
+        decodeScope.execute {
+            val drawable = synchronized(animCache) { animCache[existing] } ?: runCatching {
+                val bytes = assets.open(existing).use { it.readBytes() }
+                val src = ImageDecoder.createSource(java.nio.ByteBuffer.wrap(bytes))
+                ImageDecoder.decodeDrawable(src) { decoder, _, _ ->
+                    decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
+                    decoder.isMutableRequired = false
+                }
+            }.getOrElse {
+                PetLog.e(TAG, "ImageDecoder 解码失败 $existing: ${it.message}")
+                null
+            }?.also { d ->
+                synchronized(animCache) {
+                    if (animCache.size >= ANIM_CACHE_MAX) {
+                        val victim = animCache.keys.firstOrNull()
+                        victim?.let { animCache.remove(it) }
+                    }
+                    animCache[existing] = d
+                }
+            }
+            mainHandler.post {
+                if (drawable == null) {
+                    img.setBackgroundColor(0x88FF6688.toInt())
+                    isAnimPlaying.set(false)
+                    tryRunNextAnim()
+                    task.onComplete?.invoke()
+                    return@post
+                }
+                // 解码回来时可能已被更高优先级任务抢占，检查队头是否还是自己
+                val head = animQueue.peek()
+                if (head == null || head.seq != task.seq) {
+                    PetLog.w(TAG, "丢弃过期解码结果 $loadedFor（已被更高优先级任务抢占）")
+                    isAnimPlaying.set(false)
+                    tryRunNextAnim()
+                    task.onComplete?.invoke()
+                    return@post
+                }
+                stopCurrentAnim()
+                img.setImageDrawable(drawable)
+                if (drawable is AnimatedImageDrawable) {
+                    drawable.clearAnimationCallbacks()
+                    val isOneShot = loadedFor in ONE_SHOT_ANIMS
+                    if (isOneShot || !task.loop) {
+                        drawable.repeatCount = 0
+                        drawable.registerAnimationCallback(object : Animatable2.AnimationCallback() {
+                            override fun onAnimationEnd(d: Drawable?) {
+                                mainHandler.post {
+                                    isAnimPlaying.set(false)
+                                    // 一次性动作播完自动回 Relax（除非队列里已有更高优先级任务）
+                                    if (isOneShot && anim == loadedFor && animQueue.isEmpty()) {
+                                        enqueueAnim("Relax", PRIO_USER, null, 1.0, true, null)
+                                    }
+                                    tryRunNextAnim()
+                                    task.onComplete?.invoke()
+                                }
+                            }
+                        })
+                    } else {
+                        drawable.repeatCount = AnimatedImageDrawable.REPEAT_INFINITE
+                    }
+                    drawable.start()
+                    currentAnimDrawable = drawable
+                    PetLog.i(TAG, "动画播放 $existing oneShot=$isOneShot loop=${task.loop} prio=${task.priority}")
+                } else {
+                    currentAnimDrawable = null
+                    PetLog.i(TAG, "静态贴图 $existing")
+                    // 静态图视为已完成，直接跑下一个
+                    isAnimPlaying.set(false)
+                    tryRunNextAnim()
+                    task.onComplete?.invoke()
+                }
+                wsClient?.reportAnim(anim)
+            }
+        }
+    }
+
+    private fun stopCurrentAnim() {
+        currentAnimDrawable?.let { runCatching { it.stop() } }
+        currentAnimDrawable = null
+    }
+
+    private fun assetExists(path: String): Boolean = try {
+        applicationContext.assets.open(path).close(); true
+    } catch (_: Exception) { false }
 
     fun setSkin(name: String) {
         val skin = RoleRegistry.allSkins().find { it.id == name } ?: run {
@@ -480,9 +650,13 @@ class PetOverlayService : Service() {
         }
         if (currentSkin.id == name) return
         mainHandler.post {
+            // 切皮肤清空队列，立即播新皮肤 Relax
+            animQueue.clear()
+            isAnimPlaying.set(false)
             currentSkin = skin
             currentRole = RoleRegistry.roleOfSkin(name) ?: currentRole
-            loadAnim(); savePrefs()
+            enqueueAnim("Relax", PRIO_USER, null, 1.0, true, null)
+            savePrefs()
         }
     }
 
@@ -533,7 +707,8 @@ class PetOverlayService : Service() {
             val startY = params.y
             val frames = (durationMs / 40).toInt().coerceIn(1, 200)
             ivPet?.animate()?.scaleX(if (tx < startX) -1f else 1f)?.setDuration(180)?.start()
-            playAnimation("Move")
+            // 走路动作入队，优先级低于用户交互；到达时再入队 Relax（PRIO_WALK_ARRIVE）
+            enqueueAnim("Move", PRIO_USER, if (tx < startX) true else false, 1.0, true, null)
 
             var f = 1
             val stepper = object : Runnable {
@@ -546,10 +721,8 @@ class PetOverlayService : Service() {
                     if (f >= frames) {
                         isWalking = false
                         saveTransform()
-                        // 走完回 Relax，不是 Default：base_Default.webp / cloud_trail_Default.webp
-                        // 都是单帧静态图（0 个 ANMF chunk），回 Default 会让桌宠彻底定格，
-                        // 看起来像「走一步就卡死」。
-                        playAnimation("Relax")
+                        // 走完入队 Relax，优先级 PRIO_WALK_ARRIVE（比自主行为高，比用户交互低）
+                        enqueueAnim("Relax", PRIO_WALK_ARRIVE, null, 1.0, true, null)
                         wsClient?.reportTransform()
                         onArrived(true)
                         return
@@ -602,13 +775,14 @@ class PetOverlayService : Service() {
                                     PetLog.i(TAG, "自主走路 ($cx,$cy)→($tx,$ty) dist=$dist dur=$dur")
                                     walkTo(tx, ty, dur) {}
                                 } else {
-                                    playAnimation("Relax")
+                                    enqueueAnim("Relax", PRIO_AUTO, null, 1.0, true, null)
                                 }
                             }
-                            in 40..59 -> playAnimation("Sit")
-                            in 60..74 -> playAnimation("Sleep")
-                            else -> playAnimation("Relax")
-                        }                    }
+                            in 40..59 -> enqueueAnim("Sit", PRIO_AUTO, null, 1.0, true, null)
+                            in 60..74 -> enqueueAnim("Sleep", PRIO_AUTO, null, 1.0, true, null)
+                            else -> enqueueAnim("Relax", PRIO_AUTO, null, 1.0, true, null)
+                        }
+                    }
                 } catch (e: Exception) {
                     PetLog.e(TAG, "behavior loop 异常", e)
                 }
