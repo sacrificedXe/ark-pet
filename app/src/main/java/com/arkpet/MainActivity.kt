@@ -424,18 +424,12 @@ class MainActivity : AppCompatActivity() {
                 tvStatus.text = "检测失败，看日志"
                 return
             }
-            tvStatus.text = buildString {
-                append(if (j.optBoolean("maa_installed")) "✓" else "✗")
-                append(" MAA-Meow 已安装
-")
-                append(if (j.optBoolean("root")) "✓" else "✗")
-                append(" root 通道
-")
-                append(if (j.optBoolean("shizuku")) "✓" else "✗")
-                append(" Shizuku 通道
-")
-                append(j.optString("reason"))
-            }
+            tvStatus.text = listOf(
+                (if (j.optBoolean("maa_installed")) "✓" else "✗") + " MAA-Meow 已安装",
+                (if (j.optBoolean("root")) "✓" else "✗") + " root 通道",
+                (if (j.optBoolean("shizuku")) "✓" else "✗") + " Shizuku 通道",
+                j.optString("reason")
+            ).joinToString("\n")
             PetLog.i(TAG, "MAA 检测 $j")
         }
         refreshMaa()
@@ -453,8 +447,7 @@ class MainActivity : AppCompatActivity() {
                 runOnUiThread {
                     AlertDialog.Builder(this)
                         .setTitle("MAA 启动结果")
-                        .setMessage("status=${r.optString("status")}
-${r.optString("output")}")
+                        .setMessage("status=" + r.optString("status") + "\n" + r.optString("output"))
                         .setPositiveButton("好", null)
                         .show()
                     refreshMaa()
