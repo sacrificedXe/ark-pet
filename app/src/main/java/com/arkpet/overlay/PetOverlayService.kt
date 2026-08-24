@@ -109,6 +109,10 @@ class PetOverlayService : Service() {
     private val animQueue = ConcurrentLinkedQueue<AnimTask>()
     private var animSeq = 0L
     private val isAnimPlaying = AtomicBoolean(false)
+    // 当前正在执行的任务 seq。解码是异步的，回来时要判断"我还是当前任务吗"。
+    // 不能拿 animQueue.peek() 比——任务在 tryRunNextAnim 里已经 poll 出队了，
+    // peek 到的永远是下一个或 null，比对必然失败，会把每一次解码结果都误判为过期丢掉。
+    @Volatile private var runningSeq = -1L
 
     private var wm: WindowManager? = null
     private var rootView: View? = null
@@ -413,6 +417,7 @@ class PetOverlayService : Service() {
 
     private fun runAnimTask(task: AnimTask) {
         isAnimPlaying.set(true)
+        runningSeq = task.seq
         val img = ivPet ?: run { isAnimPlaying.set(false); tryRunNextAnim(); return }
         // 关键：切动画前显式清理 ImageView 残留变换，防止不同 webp anchor 导致偏移
         img.pivotX = 0f; img.pivotY = 0f
@@ -478,10 +483,10 @@ class PetOverlayService : Service() {
                     task.onComplete?.invoke()
                     return@post
                 }
-                // 解码回来时可能已被更高优先级任务抢占，检查队头是否还是自己
-                val head = animQueue.peek()
-                if (head == null || head.seq != task.seq) {
-                    PetLog.w(TAG, "丢弃过期解码结果 $loadedFor（已被更高优先级任务抢占）")
+                // 解码回来时可能已被更高优先级任务抢占：比对 runningSeq，
+                // 而不是队头（自己早已 poll 出队，peek 永远不等于自己）
+                if (runningSeq != task.seq) {
+                    PetLog.w(TAG, "丢弃过期解码结果 $loadedFor（running=$runningSeq, self=${task.seq}）")
                     isAnimPlaying.set(false)
                     tryRunNextAnim()
                     task.onComplete?.invoke()
