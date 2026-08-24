@@ -312,7 +312,7 @@ class PetOverlayService : Service() {
         wm!!.addView(view, overlayParams)
         PetLog.i(TAG, "addView 完成 pos=(${overlayParams!!.x},${overlayParams!!.y}) size=$sizePx")
 
-        loadAnim()
+        playAnimation(anim, priority = PRIO_USER)
     }
 
     /** 触摸：DOWN 记锚点 → MOVE 实时跟手 → UP 判定单击/双击/拖动结束 */
@@ -380,118 +380,9 @@ class PetOverlayService : Service() {
         currentSkin = next
         currentRole = RoleRegistry.roleOfSkin(next.id) ?: currentRole
         PetLog.i(TAG, "长按切换 → ${currentRole.name}/${currentSkin.name}")
-        loadAnim(); savePrefs()
+        playAnimation(anim, priority = PRIO_USER); savePrefs()
         toast("${currentRole.name} · ${currentSkin.name}")
     }
-
-    /**
-     * 加载动画帧。三级降级：
-     *   当前皮肤 webp → base 皮肤同动作 webp → base_Default → 占位色块
-     * 任何一级成功就停，绝不出现「桌宠不显示且无提示」。
-     *
-     * 解码器换成 ImageDecoder（API 28+，本项目 minSdk 28）：
-     * Glide 4.16 本体不带动画 WebP 解码器，多帧 VP8X 只会解出第一帧 ——
-     * 表现就是「走路动作还是不行」「动作看起来没实现」，其实是贴图定格。
-     * ImageDecoder 原生支持 ANIM webp，返回 AnimatedImageDrawable，start() 就动。
-     */
-    private fun loadAnim() {
-        val img = ivPet ?: return
-        val candidates = buildList {
-            add("pet/${currentSkin.id}_$anim.webp")
-            // 先在同一皮肤内降级：跨皮肤兜底会让「云迹」显示成初雪的图，
-            // 表现为「皮肤显示出错」——比不显示更容易被误判成资源损坏。
-            add("pet/${currentSkin.id}_Relax.webp")
-            add("pet/${currentSkin.id}_Sit.webp")
-            add("pet/${currentSkin.id}_Move.webp")
-            if (currentSkin.id != "base") add("pet/base_$anim.webp")
-            add("pet/base_Relax.webp")
-            add("pet/base_Default.webp")
-        }.distinct()
-
-        val existing = candidates.firstOrNull { assetExists(it) }
-        if (existing == null) {
-            PetLog.e(TAG, "全部候选资源均缺失: $candidates，降级为占位色块")
-            stopCurrentAnim()
-            img.setImageDrawable(null)
-            img.setBackgroundColor(0x88FF6688.toInt())
-            toast("动画资源缺失，已显示占位块")
-            return
-        }
-        if (existing != candidates.first()) {
-            PetLog.w(TAG, "资源降级: ${candidates.first()} 缺失 → $existing")
-        }
-        img.setBackgroundColor(0x00000000)
-
-        val loadedFor = anim
-        decodeScope.execute {
-            // 同一路径只解一次。走路每次都重解 900KB / 41 帧的话，
-            // 后台线程被占满，动作切换会延迟一两秒才出来。
-            val drawable = synchronized(animCache) { animCache[existing] } ?: runCatching {
-                // 用 ByteBuffer 而不是 createSource(AssetManager, String)：
-                // 后者在部分 ROM 的 API 28 实现上不可用，ByteBuffer 重载是 28 起的稳定 API。
-                val bytes = assets.open(existing).use { it.readBytes() }
-                val src = ImageDecoder.createSource(java.nio.ByteBuffer.wrap(bytes))
-                ImageDecoder.decodeDrawable(src) { decoder, _, _ ->
-                    decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
-                    decoder.isMutableRequired = false
-                }
-            }.getOrElse {
-                PetLog.e(TAG, "ImageDecoder 解码失败 $existing: ${it.message}")
-                null
-            }?.also { d ->
-                synchronized(animCache) {
-                    if (animCache.size >= ANIM_CACHE_MAX) {
-                        val victim = animCache.keys.firstOrNull()
-                        victim?.let { animCache.remove(it) }
-                    }
-                    animCache[existing] = d
-                }
-            }
-            mainHandler.post {
-                if (drawable == null) {
-                    img.setBackgroundColor(0x88FF6688.toInt())
-                    return@post
-                }
-                // 解码是异步的，回来时用户可能已经切了动作/皮肤，丢弃过期结果
-                if (anim != loadedFor) {
-                    PetLog.w(TAG, "丢弃过期解码结果 $loadedFor（当前 $anim）")
-                    return@post
-                }
-                stopCurrentAnim()
-                img.setImageDrawable(drawable)
-                if (drawable is AnimatedImageDrawable) {
-                    drawable.clearAnimationCallbacks()
-                    if (loadedFor in ONE_SHOT_ANIMS) {
-                        // Interact/Special 是一次性动作。不注册回调的话最后一帧永久定格，
-                        // 看起来像卡死；播完自动回 Relax。
-                        drawable.repeatCount = 0
-                        drawable.registerAnimationCallback(object : Animatable2.AnimationCallback() {
-                            override fun onAnimationEnd(d: Drawable?) {
-                                if (anim == loadedFor) playAnimation("Relax")
-                            }
-                        })
-                    } else {
-                        drawable.repeatCount = AnimatedImageDrawable.REPEAT_INFINITE
-                    }
-                    drawable.start()
-                    currentAnimDrawable = drawable
-                    PetLog.i(TAG, "动画播放 $existing oneShot=${loadedFor in ONE_SHOT_ANIMS}")
-                } else {
-                    currentAnimDrawable = null
-                    PetLog.i(TAG, "静态贴图 $existing")
-                }
-            }
-        }
-    }
-
-    private fun stopCurrentAnim() {
-        currentAnimDrawable?.let { runCatching { it.stop() } }
-        currentAnimDrawable = null
-    }
-
-    private fun assetExists(path: String): Boolean = try {
-        applicationContext.assets.open(path).close(); true
-    } catch (_: Exception) { false }
 
     // ---------------------------------------------------------------- 对外动作（入队）
 

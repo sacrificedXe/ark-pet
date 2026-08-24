@@ -144,7 +144,7 @@ class WsClient(private val ctx: Context, private val serverUrl: String) {
             connected = true
             lastError = ""
             // 打印完整响应头，排查 426/400 等握手失败
-            val headers = response.headers().toMultimap().map { "${it.key}: ${it.value.joinToString(", ")}" }.joinToString("; ")
+            val headers = response.headers.toMultimap().map { e -> "${e.key}: ${e.value.joinToString(", ")}" }.joinToString("; ")
             PetLog.i(TAG, "握手成功 HTTP ${response.code} [$headers]，上报 hello device=$deviceId")
             webSocket.send(
                 JSONObject().apply {
@@ -179,7 +179,7 @@ class WsClient(private val ctx: Context, private val serverUrl: String) {
         override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
             connected = false
             val respInfo = response?.let {
-                val hs = it.headers().toMultimap().map { "${it.key}: ${it.value.joinToString(", ")}" }.joinToString("; ")
+                val hs = it.headers.toMultimap().map { e -> "${e.key}: ${e.value.joinToString(", ")}" }.joinToString("; ")
                 " HTTP ${it.code} [$hs]"
             } ?: ""
             lastError = "${t.javaClass.simpleName}: ${t.message}$respInfo"
