@@ -11,8 +11,8 @@ android {
         applicationId = "com.arkpet"
         minSdk = 28
         targetSdk = 28
-        versionCode = 6
-        versionName = "0.4.1"
+        versionCode = 7
+        versionName = "0.4.2"
     }
 
     buildTypes {
@@ -28,7 +28,8 @@ dependencies {
     implementation("androidx.appcompat:appcompat:1.6.1")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
-    implementation("com.github.bumptech.glide:glide:4.16.0")
+    // 图片解码改用平台 ImageDecoder（API 28+），Glide 不再需要：
+    // Glide 4.16 本体没有动画 WebP 解码器，多帧 VP8X 只解第一帧，动作会定格。
     implementation("dev.rikka.shizuku:api:13.1.5")
     implementation("androidx.work:work-runtime-ktx:2.9.0")
 }

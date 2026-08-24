@@ -20,6 +20,7 @@ import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import com.arkpet.core.RoleInfo
 import com.arkpet.core.RoleRegistry
+import com.arkpet.maa.MaaBridge
 import com.arkpet.overlay.PetOverlayService
 import com.arkpet.updater.UpdateChecker
 import com.arkpet.util.PetDiagnostics
@@ -37,6 +38,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var sp: SharedPreferences
     private lateinit var tvDiag: TextView
     private lateinit var etUrl: EditText
+    private var appliedSkinId: String = ""
 
     companion object {
         private const val TAG = "MainActivity"
@@ -58,6 +60,7 @@ class MainActivity : AppCompatActivity() {
         bindRoleAndSkin()
         bindSizeAndBehavior()
         bindUpdate()
+        bindMaa()
         requestRuntimePermissions()
     }
 
@@ -270,32 +273,55 @@ class MainActivity : AppCompatActivity() {
         }
         fillSkins(savedRole, true)
 
-        // 用「首次回调忽略」标记防止 setSelection 触发的初始化回调把用户设置冲掉
-        var roleInit = true
+        // 不能用「忽略第一次回调」的布尔标记：Spinner 的初始回调只有在
+        // setSelection 落到与当前不同的位置时才必然触发。savedRole 就是 index 0 时
+        // 那次回调不发生，标记留在 true，于是用户真正的第一次切换被吞掉 ——
+        // 表现正是「选完角色皮肤不跟着变」。改成比对「已生效的 id」，幂等且无时序假设。
+        var appliedRoleId = savedRole.id
         spRole.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
             override fun onItemSelected(p: AdapterView<*>, v: android.view.View?, pos: Int, id: Long) {
-                if (roleInit) { roleInit = false; return }
-                val role = RoleRegistry.roles[pos]
-                sp.edit().putString("role_id", role.id)
-                    .putString("skin_id", role.defaultSkin().id).apply()
+                val role = RoleRegistry.roles.getOrNull(pos) ?: return
+                if (role.id == appliedRoleId) return
+                appliedRoleId = role.id
+                val skin = role.defaultSkin()
+                sp.edit().putString("role_id", role.id).putString("skin_id", skin.id).apply()
                 fillSkins(role, false)
-                PetOverlayService.instance?.setSkin(role.defaultSkin().id)
+                appliedSkinId = skin.id
+                applySkin(skin.id, "${role.name} · ${skin.name}")
             }
             override fun onNothingSelected(p: AdapterView<*>) {}
         }
 
-        var skinInit = true
+        appliedSkinId = sp.getString("skin_id", savedRole.defaultSkin().id).orEmpty()
         spSkin.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
             override fun onItemSelected(p: AdapterView<*>, v: android.view.View?, pos: Int, id: Long) {
-                if (skinInit) { skinInit = false; return }
                 val role = RoleRegistry.byId(sp.getString("role_id", "").orEmpty())
                     ?: RoleRegistry.roles.first()
                 val skin = role.skins.getOrNull(pos) ?: return
+                if (skin.id == appliedSkinId) return
+                appliedSkinId = skin.id
                 sp.edit().putString("skin_id", skin.id).apply()
-                PetOverlayService.instance?.setSkin(skin.id)
+                applySkin(skin.id, "${role.name} · ${skin.name}")
             }
             override fun onNothingSelected(p: AdapterView<*>) {}
         }
+    }
+
+    /**
+     * 落地皮肤切换。服务没起来时必须说话：
+     * 原实现是 `instance?.setSkin(...)`，服务未运行就静默什么都不做，
+     * 用户看到的现象和「切换功能坏了」完全一样。
+     */
+    private fun applySkin(skinId: String, label: String) {
+        val svc = PetOverlayService.instance
+        if (svc == null) {
+            PetLog.i(TAG, "皮肤已存盘 $skinId，但服务未运行，下次启动生效")
+            toast("已选 $label，启动桌宠后生效")
+            return
+        }
+        svc.setSkin(skinId)
+        PetLog.i(TAG, "皮肤切换 → $skinId")
+        toast("已切换到 $label")
     }
 
     private fun bindSizeAndBehavior() {
@@ -373,4 +399,88 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun toast(msg: String) = Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
+
+    // ------------------------------------------------------------------ MAA
+
+    /**
+     * MAA-Meow 面板。之前 MaaBridge 只挂在 WS 的 maa.start/maa.stop 上，
+     * 机上完全没有入口，用户问「MAA 的界面在哪儿」——功能在，门没开。
+     * 这里补齐四个动作：检测 / 启动配置 / 停止 / 直接打开 MAA-Meow 本体。
+     */
+    private fun bindMaa() {
+        val tvStatus = findViewById<TextView>(R.id.tv_maa_status)
+        val etProfile = findViewById<EditText>(R.id.et_maa_profile)
+        val swForce = findViewById<Switch>(R.id.sw_maa_force)
+
+        etProfile.setText(sp.getString("maa_profile_id", ""))
+        swForce.isChecked = sp.getBoolean("maa_force_start", false)
+        swForce.setOnCheckedChangeListener { _, v ->
+            sp.edit().putBoolean("maa_force_start", v).apply()
+        }
+
+        fun refreshMaa() {
+            val j = runCatching { MaaBridge.checkAvailable() }.getOrNull()
+            if (j == null) {
+                tvStatus.text = "检测失败，看日志"
+                return
+            }
+            tvStatus.text = buildString {
+                append(if (j.optBoolean("maa_installed")) "✓" else "✗")
+                append(" MAA-Meow 已安装
+")
+                append(if (j.optBoolean("root")) "✓" else "✗")
+                append(" root 通道
+")
+                append(if (j.optBoolean("shizuku")) "✓" else "✗")
+                append(" Shizuku 通道
+")
+                append(j.optString("reason"))
+            }
+            PetLog.i(TAG, "MAA 检测 $j")
+        }
+        refreshMaa()
+
+        findViewById<Button>(R.id.btn_maa_check).setOnClickListener { refreshMaa() }
+
+        findViewById<Button>(R.id.btn_maa_start).setOnClickListener {
+            val pid = etProfile.text.toString().trim()
+            if (pid.isBlank()) { toast("先填任务配置 UUID"); return@setOnClickListener }
+            sp.edit().putString("maa_profile_id", pid).apply()
+            toast("启动中…")
+            Thread {
+                val r = runCatching { MaaBridge.start(pid, swForce.isChecked) }
+                    .getOrElse { org.json.JSONObject().put("status", "error").put("output", it.message) }
+                runOnUiThread {
+                    AlertDialog.Builder(this)
+                        .setTitle("MAA 启动结果")
+                        .setMessage("status=${r.optString("status")}
+${r.optString("output")}")
+                        .setPositiveButton("好", null)
+                        .show()
+                    refreshMaa()
+                }
+            }.start()
+        }
+
+        findViewById<Button>(R.id.btn_maa_stop).setOnClickListener {
+            Thread {
+                runCatching { MaaBridge.stop() }
+                runOnUiThread { toast("已发送停止指令"); refreshMaa() }
+            }.start()
+        }
+
+        findViewById<Button>(R.id.btn_maa_open).setOnClickListener {
+            val intent = packageManager.getLaunchIntentForPackage(MaaBridge.PKG)
+            if (intent == null) {
+                AlertDialog.Builder(this)
+                    .setTitle("未安装 MAA-Meow")
+                    .setMessage("包名 ${MaaBridge.PKG} 没找到。先装 MAA-Meow，再回来这里。")
+                    .setPositiveButton("好", null)
+                    .show()
+                return@setOnClickListener
+            }
+            runCatching { startActivity(intent) }
+                .onFailure { toast("拉起失败：${it.message}") }
+        }
+    }
 }

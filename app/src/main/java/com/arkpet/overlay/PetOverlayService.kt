@@ -6,7 +6,10 @@ import android.app.NotificationManager
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.graphics.ImageDecoder
 import android.graphics.PixelFormat
+import android.graphics.drawable.Animatable2
+import android.graphics.drawable.AnimatedImageDrawable
 import android.graphics.drawable.Drawable
 import android.os.Build
 import android.os.Handler
@@ -38,11 +41,6 @@ import com.arkpet.net.PetTransform
 import com.arkpet.net.WsClient
 import com.arkpet.updater.UpdateWorker
 import com.arkpet.util.PetLog
-import com.bumptech.glide.Glide
-import com.bumptech.glide.load.DataSource
-import com.bumptech.glide.load.engine.GlideException
-import com.bumptech.glide.request.RequestListener
-import com.bumptech.glide.request.target.Target
 import java.util.concurrent.TimeUnit
 import kotlin.math.abs
 import kotlin.math.hypot
@@ -75,6 +73,10 @@ class PetOverlayService : Service() {
         private const val TAP_MAX_MS = 500L
         private const val LONG_PRESS_MS = 900L
         private const val DRAG_SLOP_PX = 12f
+        // 一次性动作：播完回 Relax，不能无限循环
+        private val ONE_SHOT_ANIMS = setOf("Interact", "Special")
+        // Drawable 缓存上限。单个 webp 解出来占几十 MB，缓存太多会 OOM
+        private const val ANIM_CACHE_MAX = 4
 
         @Volatile
         var instance: PetOverlayService? = null
@@ -82,6 +84,11 @@ class PetOverlayService : Service() {
     }
 
     private val mainHandler = Handler(Looper.getMainLooper())
+    // webp 解码放后台：cloud_trail_Sleep 有 120 帧、2MB，主线程解会卡住整个悬浮窗
+    private val decodeScope = java.util.concurrent.Executors.newSingleThreadExecutor()
+    private var currentAnimDrawable: AnimatedImageDrawable? = null
+    // 已解码的 Drawable 缓存，避免同一动作反复解码
+    private val animCache = LinkedHashMap<String, Drawable>()
 
     private var wm: WindowManager? = null
     private var rootView: View? = null
@@ -167,6 +174,9 @@ class PetOverlayService : Service() {
         PetLog.i(TAG, "onDestroy")
         instance = null
         behaviorLoop?.let { mainHandler.removeCallbacks(it) }
+        stopCurrentAnim()
+        synchronized(animCache) { animCache.clear() }
+        runCatching { decodeScope.shutdownNow() }
         runCatching { wsClient?.stop() }
         hideChatInput()
         runCatching { rootView?.let { wm?.removeView(it) } }
@@ -344,6 +354,11 @@ class PetOverlayService : Service() {
      * 加载动画帧。三级降级：
      *   当前皮肤 webp → base 皮肤同动作 webp → base_Default → 占位色块
      * 任何一级成功就停，绝不出现「桌宠不显示且无提示」。
+     *
+     * 解码器换成 ImageDecoder（API 28+，本项目 minSdk 28）：
+     * Glide 4.16 本体不带动画 WebP 解码器，多帧 VP8X 只会解出第一帧 ——
+     * 表现就是「走路动作还是不行」「动作看起来没实现」，其实是贴图定格。
+     * ImageDecoder 原生支持 ANIM webp，返回 AnimatedImageDrawable，start() 就动。
      */
     private fun loadAnim() {
         val img = ivPet ?: return
@@ -362,6 +377,7 @@ class PetOverlayService : Service() {
         val existing = candidates.firstOrNull { assetExists(it) }
         if (existing == null) {
             PetLog.e(TAG, "全部候选资源均缺失: $candidates，降级为占位色块")
+            stopCurrentAnim()
             img.setImageDrawable(null)
             img.setBackgroundColor(0x88FF6688.toInt())
             toast("动画资源缺失，已显示占位块")
@@ -372,23 +388,71 @@ class PetOverlayService : Service() {
         }
         img.setBackgroundColor(0x00000000)
 
-        Glide.with(applicationContext)
-            .load("file:///android_asset/$existing")
-            .listener(object : RequestListener<Drawable> {
-                override fun onLoadFailed(
-                    e: GlideException?, model: Any?, target: Target<Drawable>, isFirstResource: Boolean
-                ): Boolean {
-                    PetLog.e(TAG, "Glide 解码失败 $existing: ${e?.message}")
-                    mainHandler.post { img.setBackgroundColor(0x88FF6688.toInt()) }
-                    return false
+        val loadedFor = anim
+        decodeScope.execute {
+            // 同一路径只解一次。走路每次都重解 900KB / 41 帧的话，
+            // 后台线程被占满，动作切换会延迟一两秒才出来。
+            val drawable = synchronized(animCache) { animCache[existing] } ?: runCatching {
+                // 用 ByteBuffer 而不是 createSource(AssetManager, String)：
+                // 后者在部分 ROM 的 API 28 实现上不可用，ByteBuffer 重载是 28 起的稳定 API。
+                val bytes = assets.open(existing).use { it.readBytes() }
+                val src = ImageDecoder.createSource(java.nio.ByteBuffer.wrap(bytes))
+                ImageDecoder.decodeDrawable(src) { decoder, _, _ ->
+                    decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
+                    decoder.isMutableRequired = false
                 }
+            }.getOrElse {
+                PetLog.e(TAG, "ImageDecoder 解码失败 $existing: ${it.message}")
+                null
+            }?.also { d ->
+                synchronized(animCache) {
+                    if (animCache.size >= ANIM_CACHE_MAX) {
+                        val victim = animCache.keys.firstOrNull()
+                        victim?.let { animCache.remove(it) }
+                    }
+                    animCache[existing] = d
+                }
+            }
+            mainHandler.post {
+                if (drawable == null) {
+                    img.setBackgroundColor(0x88FF6688.toInt())
+                    return@post
+                }
+                // 解码是异步的，回来时用户可能已经切了动作/皮肤，丢弃过期结果
+                if (anim != loadedFor) {
+                    PetLog.w(TAG, "丢弃过期解码结果 $loadedFor（当前 $anim）")
+                    return@post
+                }
+                stopCurrentAnim()
+                img.setImageDrawable(drawable)
+                if (drawable is AnimatedImageDrawable) {
+                    drawable.clearAnimationCallbacks()
+                    if (loadedFor in ONE_SHOT_ANIMS) {
+                        // Interact/Special 是一次性动作。不注册回调的话最后一帧永久定格，
+                        // 看起来像卡死；播完自动回 Relax。
+                        drawable.repeatCount = 0
+                        drawable.registerAnimationCallback(object : Animatable2.AnimationCallback() {
+                            override fun onAnimationEnd(d: Drawable?) {
+                                if (anim == loadedFor) playAnimation("Relax")
+                            }
+                        })
+                    } else {
+                        drawable.repeatCount = AnimatedImageDrawable.REPEAT_INFINITE
+                    }
+                    drawable.start()
+                    currentAnimDrawable = drawable
+                    PetLog.i(TAG, "动画播放 $existing oneShot=${loadedFor in ONE_SHOT_ANIMS}")
+                } else {
+                    currentAnimDrawable = null
+                    PetLog.i(TAG, "静态贴图 $existing")
+                }
+            }
+        }
+    }
 
-                override fun onResourceReady(
-                    resource: Drawable, model: Any, target: Target<Drawable>?,
-                    dataSource: DataSource, isFirstResource: Boolean
-                ): Boolean = false
-            })
-            .into(img)
+    private fun stopCurrentAnim() {
+        currentAnimDrawable?.let { runCatching { it.stop() } }
+        currentAnimDrawable = null
     }
 
     private fun assetExists(path: String): Boolean = try {
@@ -482,7 +546,10 @@ class PetOverlayService : Service() {
                     if (f >= frames) {
                         isWalking = false
                         saveTransform()
-                        playAnimation("Default")
+                        // 走完回 Relax，不是 Default：base_Default.webp / cloud_trail_Default.webp
+                        // 都是单帧静态图（0 个 ANMF chunk），回 Default 会让桌宠彻底定格，
+                        // 看起来像「走一步就卡死」。
+                        playAnimation("Relax")
                         wsClient?.reportTransform()
                         onArrived(true)
                         return
@@ -518,19 +585,30 @@ class PetOverlayService : Service() {
                         rootView?.visibility == View.VISIBLE
                     ) {
                         when ((0..99).random()) {
-                            in 0..14 -> {
+                            // 走路权重从 15% 提到 40%：原来平均要等 3~4 轮（半分钟以上）
+                            // 才会走一次，用户观察十几秒得出的结论必然是「走路不行」。
+                            in 0..39 -> {
                                 val dm = resources.displayMetrics
                                 val cx = overlayParams?.x ?: 0
                                 val cy = overlayParams?.y ?: 0
-                                val tx = cx + (-160..160).random()
-                                val ty = cy + (-120..120).random()
-                                if (abs(tx - cx) + abs(ty - cy) > 20) walkTo(tx, ty, 2200L) {}
+                                // 目标点按屏宽取，不再是 ±160px 的原地挪动
+                                val tx = (0..(dm.widthPixels - 120).coerceAtLeast(1)).random()
+                                val ty = (cy + (-200..200).random())
+                                    .coerceIn(0, (dm.heightPixels - 120).coerceAtLeast(1))
+                                val dist = abs(tx - cx) + abs(ty - cy)
+                                if (dist > 60) {
+                                    // 时长按距离算，恒定 2200ms 会让远距离像瞬移、近距离像蜗牛
+                                    val dur = (dist * 6L).coerceIn(1200L, 6000L)
+                                    PetLog.i(TAG, "自主走路 ($cx,$cy)→($tx,$ty) dist=$dist dur=$dur")
+                                    walkTo(tx, ty, dur) {}
+                                } else {
+                                    playAnimation("Relax")
+                                }
                             }
-                            in 15..44 -> playAnimation("Sit")
-                            in 45..74 -> playAnimation("Sleep")
+                            in 40..59 -> playAnimation("Sit")
+                            in 60..74 -> playAnimation("Sleep")
                             else -> playAnimation("Relax")
-                        }
-                    }
+                        }                    }
                 } catch (e: Exception) {
                     PetLog.e(TAG, "behavior loop 异常", e)
                 }

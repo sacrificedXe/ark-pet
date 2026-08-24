@@ -221,7 +221,10 @@ class WsClient(private val ctx: Context, private val serverUrl: String) {
             when (action) {
                 "animate" -> post { PetOverlayService.instance?.playAnimation(
                     p.optString("anim", currentAnim), p.optDouble("speed", 1.0),
-                    p.optBoolean("loop", true), p.optBoolean("flipX", false)
+                    p.optBoolean("loop", true),
+                    // 没传 flipX 就传 null（保持当前朝向）。原来默认 false 会把
+                    // walkTo 刚设好的朝向硬掰回正面，走路方向和贴图永远相反。
+                    if (p.has("flipX")) p.optBoolean("flipX") else null
                 ) }
                 "say" -> post { PetOverlayService.instance?.showBubble(p.optString("text")) }
                 "walk_to" -> post {

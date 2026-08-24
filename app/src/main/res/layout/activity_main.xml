@@ -209,6 +209,91 @@
             android:text="检查更新"
             android:layout_marginTop="12dp" />
 
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="#22000000"
+            android:layout_marginTop="16dp"
+            android:layout_marginBottom="12dp" />
+
+        <!-- MAA-Meow 联动。原来只能通过 WS 远程下 maa.start，机上没有任何入口，
+             表现就是「MAA 的界面在哪儿」——功能在，门没开。 -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="MAA-Meow 联动"
+            android:textSize="16sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/tv_maa_status"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textSize="12sp"
+            android:fontFamily="monospace"
+            android:lineSpacingExtra="2dp"
+            android:padding="8dp"
+            android:background="#11000000"
+            android:layout_marginTop="4dp"
+            android:text="未检测" />
+
+        <EditText
+            android:id="@+id/et_maa_profile"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="任务配置 UUID（MAA-Meow 后台任务里复制）"
+            android:inputType="text"
+            android:maxLines="1"
+            android:layout_marginTop="6dp" />
+
+        <Switch
+            android:id="@+id/sw_maa_force"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="强制启动（忽略游戏已在运行）" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginTop="6dp">
+
+            <Button
+                android:id="@+id/btn_maa_check"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="wrap_content"
+                android:text="检测" />
+
+            <Button
+                android:id="@+id/btn_maa_start"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="wrap_content"
+                android:text="启动任务" />
+
+            <Button
+                android:id="@+id/btn_maa_stop"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="wrap_content"
+                android:text="停止" />
+        </LinearLayout>
+
+        <Button
+            android:id="@+id/btn_maa_open"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="打开 MAA-Meow 主界面"
+            android:layout_marginTop="6dp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="MAA-Meow 需自行安装，且要 root 或 Shizuku 授权才能被拉起。Shizuku 通道当前不可用（反射待修），只有 root 机能用。"
+            android:textSize="11sp"
+            android:textColor="#888888" />
+
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
