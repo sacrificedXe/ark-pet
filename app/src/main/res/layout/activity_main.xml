@@ -216,6 +216,58 @@
             android:layout_marginTop="16dp"
             android:layout_marginBottom="12dp" />
 
+        <!-- Shizuku 授权。S5（StudyOS）的 PackageInstaller 只认自家 BPK 格式，
+             第三方 APK 走系统安装器一律「家教机无法识别」，且机器无 root。
+             只剩 Shizuku：以 shell uid 调 pm install，与 adb install 同一条路。
+             必须由 App 主动 requestPermission 一次，否则 Shizuku 授权列表里
+             压根不会出现本应用，用户无从手动勾选。 -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Shizuku 授权（静默安装 / MAA 通道）"
+            android:textSize="16sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/tv_shizuku_status"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textSize="12sp"
+            android:fontFamily="monospace"
+            android:lineSpacingExtra="2dp"
+            android:padding="8dp"
+            android:background="#11000000"
+            android:layout_marginTop="4dp"
+            android:text="未检测" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginTop="6dp">
+
+            <Button
+                android:id="@+id/btn_shizuku_request"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="wrap_content"
+                android:text="申请授权" />
+
+            <Button
+                android:id="@+id/btn_shizuku_test"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="wrap_content"
+                android:text="测试通道" />
+        </LinearLayout>
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="#22000000"
+            android:layout_marginTop="16dp"
+            android:layout_marginBottom="12dp" />
+
         <!-- MAA-Meow 联动。原来只能通过 WS 远程下 maa.start，机上没有任何入口，
              表现就是「MAA 的界面在哪儿」——功能在，门没开。 -->
         <TextView

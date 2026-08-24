@@ -1,14 +1,12 @@
 package com.arkpet.maa
 
 import android.content.Context
-import android.content.pm.PackageManager
 import com.arkpet.net.WsClient
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import org.json.JSONObject
-import rikka.shizuku.Shizuku
 import java.util.concurrent.TimeUnit
 
 /**
@@ -29,7 +27,6 @@ object MaaBridge {
     private var wsClient: WsClient? = null
     private var initialized = false
     private var rootCache: Boolean? = null
-    private var shizukuCache: Boolean? = null
     private var ctx: Context? = null
     private val context
         get() = ctx ?: throw IllegalStateException("MaaBridge 未初始化，先调用 MaaBridge.init(context)")
@@ -112,11 +109,9 @@ object MaaBridge {
         }
     }
 
-    /** Shizuku 执行：暂时标记为不可用，避免反射编译问题（后续修复） */
-    private fun runShizuku(cmd: String): Pair<Boolean, String> {
-        // TODO: 修复 Shizuku 反射调用编译问题
-        return Pair(false, "shizuku_temporarily_unavailable")
-    }
+    /** Shizuku 执行：走 ShizukuShell 统一通道（反射 newProcess，13.x 上是 @hide） */
+    private fun runShizuku(cmd: String): Pair<Boolean, String> =
+        com.arkpet.shizuku.ShizukuShell.exec(cmd, 30)
 
     /** root 检测（缓存结果） */
     private fun isRooted(): Boolean {
@@ -130,15 +125,8 @@ object MaaBridge {
         return rootCache!!
     }
 
-    /** Shizuku 就绪检测（缓存结果） */
-    private fun isShizukuReady(): Boolean {
-        if (shizukuCache != null) return shizukuCache!!
-        shizukuCache = try {
-            Shizuku.pingBinder() &&
-                    Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED
-        } catch (_: Exception) { false }
-        return shizukuCache!!
-    }
+    /** Shizuku 就绪检测（不缓存：授权状态随时会变，缓存住会一直显示未授权） */
+    private fun isShizukuReady(): Boolean = com.arkpet.shizuku.ShizukuShell.isReady()
 
     private fun reportMaa(status: String, detail: String) {
         wsClient?.reportMaa(status, detail)

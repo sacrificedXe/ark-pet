@@ -22,11 +22,13 @@ import com.arkpet.core.RoleInfo
 import com.arkpet.core.RoleRegistry
 import com.arkpet.maa.MaaBridge
 import com.arkpet.overlay.PetOverlayService
+import com.arkpet.shizuku.ShizukuShell
 import com.arkpet.updater.UpdateChecker
 import com.arkpet.util.PetDiagnostics
 import com.arkpet.util.PetLog
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import rikka.shizuku.Shizuku
 import java.util.concurrent.TimeUnit
 
 /**
@@ -52,6 +54,10 @@ class MainActivity : AppCompatActivity() {
         sp = getSharedPreferences("arkpet", MODE_PRIVATE)
         PetLog.i(TAG, "onCreate")
 
+        // 授权回调必须在 requestPermission 之前注册好，否则用户点了允许没人接
+        runCatching { Shizuku.addRequestPermissionResultListener(shizukuPermListener) }
+            .onFailure { PetLog.e(TAG, "注册 Shizuku 回调失败", it) }
+
         bindVersion()
         bindDiagnostics()
         bindServerUrl()
@@ -60,6 +66,7 @@ class MainActivity : AppCompatActivity() {
         bindRoleAndSkin()
         bindSizeAndBehavior()
         bindUpdate()
+        bindShizuku()
         bindMaa()
         requestRuntimePermissions()
     }
@@ -100,8 +107,15 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         refreshDiagnostics()
+        // 用户可能刚从 Shizuku App 切回来（那边手动授权后回不到我们的回调），这里补刷
+        shizukuRefresh?.invoke()
         findViewById<Button>(R.id.btn_start).text =
             if (PetOverlayService.instance != null) "3. 桌宠运行中（点击重启）" else "3. 启动桌宠"
+    }
+
+    override fun onDestroy() {
+        runCatching { Shizuku.removeRequestPermissionResultListener(shizukuPermListener) }
+        super.onDestroy()
     }
 
     // ------------------------------------------------------------------ 各区块
@@ -399,6 +413,92 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun toast(msg: String) = Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
+
+    // -------------------------------------------------------------- Shizuku
+
+    /**
+     * Shizuku 面板。
+     *
+     * 为什么必须有「申请授权」这个按钮：Shizuku 的授权管理列表只列出「向它请求过权限」
+     * 的应用。App 从不主动 requestPermission，就永远不出现在列表里，用户手动怎么找都找不到
+     * ——这正是上一版的现象。授权必须由 App 发起一次。
+     *
+     * 另外上一版 manifest 里声明的是 moe.shizuku.api.ShizukuService（API 10 老包名），
+     * dev.rikka.shizuku:api:13 里没有这些类，等于没声明。Shizuku 的 binder 是靠
+     * rikka.shizuku.ShizukuProvider 送进来的，缺 provider 则 pingBinder 恒假。
+     */
+    private fun bindShizuku() {
+        val tv = findViewById<TextView>(R.id.tv_shizuku_status)
+
+        fun refresh() {
+            val running = runCatching { Shizuku.pingBinder() }.getOrDefault(false)
+            val granted = ShizukuShell.isReady()
+            tv.text = listOf(
+                (if (running) "✓" else "✗") + " Shizuku 服务运行中",
+                (if (granted) "✓" else "✗") + " 本应用已授权",
+                when {
+                    !running -> "Shizuku 没跑起来。打开 Shizuku App，用 adb 启动一次。"
+                    !granted -> "服务在跑但没授权。点下面「申请授权」，弹窗里选允许。"
+                    else -> "通道就绪。更新会走 pm install 静默安装，不再经家教机安装器。"
+                }
+            ).joinToString("\n")
+        }
+        refresh()
+        shizukuRefresh = ::refresh
+
+        findViewById<Button>(R.id.btn_shizuku_request).setOnClickListener {
+            when (ShizukuShell.requestPermission()) {
+                0 -> toast("已经授权过了")
+                1 -> toast("已弹出申请，请点允许")
+                2 -> AlertDialog.Builder(this)
+                    .setTitle("Shizuku 未运行")
+                    .setMessage(
+                        "拿不到 Shizuku 的 binder。检查两点：\n" +
+                            "1. Shizuku App 是否显示「正在运行」\n" +
+                            "2. 每次重启学习机后都要重新用 adb 启动 Shizuku"
+                    )
+                    .setPositiveButton("好", null)
+                    .show()
+                3 -> AlertDialog.Builder(this)
+                    .setTitle("需手动授权")
+                    .setMessage("打开 Shizuku App → 授权管理 → 找到「初雪桌宠」→ 允许。")
+                    .setPositiveButton("好", null)
+                    .show()
+            }
+            refresh()
+        }
+
+        findViewById<Button>(R.id.btn_shizuku_test).setOnClickListener {
+            Thread {
+                val id = ShizukuShell.whoami()
+                runOnUiThread {
+                    AlertDialog.Builder(this)
+                        .setTitle("Shizuku 通道测试")
+                        .setMessage(
+                            "执行 id 的结果：\n" + id + "\n\n" +
+                                "期望看到 uid=2000(shell)。看到了就说明静默安装能用。"
+                        )
+                        .setPositiveButton("好", null)
+                        .show()
+                    refresh()
+                }
+            }.start()
+        }
+    }
+
+    /** 授权结果是异步回调回来的，拿到后要立刻刷新面板，否则用户点了允许界面还显示未授权 */
+    private var shizukuRefresh: (() -> Unit)? = null
+
+    private val shizukuPermListener =
+        Shizuku.OnRequestPermissionResultListener { _, grantResult ->
+            val ok = grantResult == PackageManager.PERMISSION_GRANTED
+            PetLog.i(TAG, "Shizuku 授权结果 → ${if (ok) "允许" else "拒绝"}")
+            runOnUiThread {
+                toast(if (ok) "Shizuku 已授权" else "Shizuku 授权被拒")
+                shizukuRefresh?.invoke()
+                refreshDiagnostics()
+            }
+        }
 
     // ------------------------------------------------------------------ MAA
 

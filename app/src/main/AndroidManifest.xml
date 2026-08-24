@@ -29,15 +29,24 @@
         android:usesCleartextTraffic="true"
         android:networkSecurityConfig="@xml/network_security_config">
 
-        <service
-            android:name="moe.shizuku.api.ShizukuBinderWrapperService"
-            android:permission="android.permission.INTERACT_ACROSS_USERS_FULL"
-            android:process=":shizuku" />
+        <!--
+          Shizuku API 13 的接入方式：必须声明 ShizukuProvider。
+          Shizuku 服务端是通过 ContentProvider 把 binder 送进来的，没有这个 provider，
+          Shizuku.pingBinder() 永远拿不到 binder、checkSelfPermission 永远是拒绝，
+          而且 App 根本不会出现在 Shizuku 的「授权管理」列表里——
+          Shizuku 只列出「请求过权限」的应用，binder 都没拿到就无从请求。
 
-        <service
-            android:name="moe.shizuku.api.ShizukuService"
-            android:permission="android.permission.INTERACT_ACROSS_USERS_FULL"
-            android:process=":shizuku" />
+          原先这里写的是 moe.shizuku.api.ShizukuBinderWrapperService / ShizukuService，
+          那是 API 10 及更早的老包名，dev.rikka.shizuku:api:13.1.5 里这两个类根本不存在，
+          声明了等于指向空类，一点作用没有。
+        -->
+        <provider
+            android:name="rikka.shizuku.ShizukuProvider"
+            android:authorities="${applicationId}.shizuku"
+            android:multiprocess="false"
+            android:enabled="true"
+            android:exported="true"
+            android:permission="android.permission.INTERACT_ACROSS_USERS_FULL" />
 
         <activity
             android:name=".MainActivity"

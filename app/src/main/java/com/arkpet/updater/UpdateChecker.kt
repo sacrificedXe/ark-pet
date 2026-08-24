@@ -7,6 +7,7 @@ import android.content.Context
 import android.content.Intent
 import androidx.core.app.NotificationCompat
 import androidx.core.content.FileProvider
+import com.arkpet.shizuku.ShizukuShell
 import com.arkpet.util.PetLog
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -172,8 +173,12 @@ class UpdateChecker(private val ctx: Context) {
 
     fun downloadAndInstall(url: String, onProgress: (Int) -> Unit, onDone: (Boolean) -> Unit) {
         Thread {
-            val tmp = File(ctx.cacheDir, "$APK_NAME.tmp")
-            val target = File(ctx.cacheDir, APK_NAME)
+            // 落盘位置从 cacheDir 改成 externalCacheDir：
+            // Shizuku 以 shell uid(2000) 执行 pm install，进不去 /data/data/com.arkpet/cache，
+            // 会报 Permission denied。/sdcard/Android/data/com.arkpet/cache 在 API 28 上 shell 可读。
+            val dir = ctx.externalCacheDir ?: ctx.cacheDir
+            val tmp = File(dir, "$APK_NAME.tmp")
+            val target = File(dir, APK_NAME)
             PetLog.i(TAG, "开始下载 $url")
             notify("正在下载更新…")
             try {
@@ -227,7 +232,23 @@ class UpdateChecker(private val ctx: Context) {
         }.start()
     }
 
+    /**
+     * 安装。优先 Shizuku 静默装，失败再退回系统安装器。
+     *
+     * 为什么不能只靠系统安装器：步步高 StudyOS 的 PackageInstaller 只认自家 BPK 加密格式，
+     * 标准 APK 走 ACTION_VIEW 会被判「家教机无法识别」。这一层在系统里，
+     * REQUEST_INSTALL_PACKAGES appop 放行也解决不了——那只管权限声明，不管格式校验。
+     * Shizuku 以 shell uid 调 pm install，走的是和 adb install 同一条路，绕开那个界面。
+     */
     private fun install(file: File) {
+        if (ShizukuShell.isReady()) {
+            val (ok, out) = ShizukuShell.installApk(file)
+            PetLog.i(TAG, "Shizuku 安装 ok=$ok out=$out")
+            if (ok) { notify("已通过 Shizuku 安装完成"); return }
+            notify("Shizuku 安装失败：${out.take(60)}，改走系统安装器")
+        } else {
+            PetLog.w(TAG, "Shizuku 未就绪，退回系统安装器（S5 上大概率会被拒）")
+        }
         try {
             val uri = FileProvider.getUriForFile(ctx, "${ctx.packageName}.fileprovider", file)
             val intent = Intent(Intent.ACTION_VIEW).apply {
