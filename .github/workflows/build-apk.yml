@@ -1,4 +1,4 @@
-name: Build ArkPet APK
+name: Build arknights-pet APK
 
 on:
   push:
@@ -45,13 +45,13 @@ jobs:
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ark-pet-debug-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
+          name: arknights-pet-debug-apk
+          path: app/build/outputs/apk/debug/arknights-pet-debug.apk
           retention-days: 7
 
       - name: Print APK Info
         if: success()
         run: |
-          APK=app/build/outputs/apk/debug/app-debug.apk
+          APK=app/build/outputs/apk/debug/arknights-pet-debug.apk
           echo "APK size: $(du -h $APK | cut -f1)"
           unzip -l $APK | grep "assets/pet" || true
