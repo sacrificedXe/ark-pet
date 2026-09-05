@@ -67,6 +67,14 @@ import kotlin.math.hypot
  *    playAnimation/ walkTo/ behaviorLoop 统一入队，执行前显式 stop 当前 AnimatedImageDrawable 并清理
  *    ImageView pivot/scale/translation，防止切动画残留变换导致偏移。
  * 8. WS 路径显式 /ws，握手失败打印完整 HTTP 响应码。
+ *
+ * v0.5.0 新增（物理交互）：
+ * 9. 拖拽挣扎：拖动中身体随手势方向倾斜（pivot 取中心做旋转），松手回正。
+ * 10. 抛掷物理：ACTION_UP 时取最近 FLING_WINDOW_MS 的手势速度作初速度，
+ *     模拟重力 + 空气阻尼 + 侧壁反弹 + 地板弹跳（能量衰减），速度低于阈值判定落地。
+ *     飞行中身体按水平速度倾斜；飞行可被新的 ACTION_DOWN 打断（空中抓取）。
+ * 11. 部位交互：单击按触点在身体上的相对位置分区（头/身/脚）给出不同动作。
+ * 12. 飞行/拖拽期间自主行为与 walkTo 暂停，避免动画与位移互相打架。
  */
 class PetOverlayService : Service() {
 
@@ -83,6 +91,20 @@ class PetOverlayService : Service() {
         private const val TAP_MAX_MS = 500L
         private const val LONG_PRESS_MS = 900L
         private const val DRAG_SLOP_PX = 12f
+
+        // ---------------- 物理抛掷参数（单位：px、ms）----------------
+        // 重力 0.0038 px/ms^2：1080p 屏幕从顶落到底约 1.1s，接近自由落体的体感
+        private const val PHYS_GRAVITY = 0.0038f
+        private const val PHYS_TICK_MS = 16L
+        private const val PHYS_BOUNCE_Y = 0.45f   // 地板垂直反弹系数
+        private const val PHYS_BOUNCE_X = 0.60f   // 侧壁/水平反弹系数
+        private const val PHYS_AIR_DRAG = 0.999f  // 每 tick 水平阻尼
+        private const val PHYS_STOP_VY = 0.12f    // 垂直速度低于此值判定落地（px/ms）
+        private const val PHYS_V_MAX = 3.0f       // 初速度上限，防瞬移（px/ms）
+        private const val PHYS_MIN_THROW = 0.25f  // 低于此速度不算抛掷，直接原地放下
+        private const val FLING_WINDOW_MS = 90L   // 取样窗口：只看最近 90ms 的手势速度
+        private const val DRAG_TILT_MAX = 12f     // 拖拽挣扎最大倾角
+        private const val FLIGHT_TILT_MAX = 30f   // 飞行倾斜最大角度
         // 一次性动作：播完回 Relax，不能无限循环
         private val ONE_SHOT_ANIMS = setOf("Interact", "Special")
         // Drawable 缓存上限。单个 webp 解出来占几十 MB，缓存太多会 OOM
@@ -134,6 +156,13 @@ class PetOverlayService : Service() {
     private var downTime = 0L
     private var dragging = false
     private var lastUpTime = 0L
+
+    // ---------------- 物理交互状态 ----------------
+    // 最近手势采样 (rawX, rawY, timeMs)，用于松手瞬间算抛掷初速度
+    private val moveSamples = ArrayDeque<FloatArray>()
+    private var lastMoveRawX = 0f
+    // 正在抛掷飞行中。飞行可被新 ACTION_DOWN 打断（空中抓取）
+    @Volatile private var isFlying = false
 
     private var isWalking = false
     private var behaviorEnabled = true
@@ -208,6 +237,7 @@ class PetOverlayService : Service() {
     override fun onDestroy() {
         PetLog.i(TAG, "onDestroy")
         instance = null
+        isFlying = false
         behaviorLoop?.let { mainHandler.removeCallbacks(it) }
         // 清空动画队列并停止当前动画
         animQueue.clear()
@@ -319,7 +349,10 @@ class PetOverlayService : Service() {
         playAnimation(anim, priority = PRIO_USER)
     }
 
-    /** 触摸：DOWN 记锚点 → MOVE 实时跟手 → UP 判定单击/双击/拖动结束 */
+    /**
+     * 触摸：DOWN 记锚点 → MOVE 实时跟手（拖拽中带挣扎倾斜 + 速度采样）
+     * → UP 判定单击(分区反应)/双击/长按/放下/抛掷
+     */
     private fun handleTouch(ev: MotionEvent): Boolean {
         val params = overlayParams ?: return false
         val view = rootView ?: return false
@@ -329,26 +362,60 @@ class PetOverlayService : Service() {
                 downParamX = params.x; downParamY = params.y
                 downTime = System.currentTimeMillis()
                 dragging = false
+                // 空中抓取：按住即停止飞行，等 UP 决定放下还是再抛
+                if (isFlying) {
+                    isFlying = false
+                    PetLog.i(TAG, "空中抓取，停止飞行")
+                }
+                lastMoveRawX = ev.rawX
+                moveSamples.clear()
+                moveSamples.add(floatArrayOf(ev.rawX, ev.rawY, System.currentTimeMillis()))
                 wsClient?.reportTouch(ev.rawX, ev.rawY, MotionEvent.ACTION_DOWN, 0)
             }
             MotionEvent.ACTION_MOVE -> {
                 val dx = ev.rawX - downRawX
                 val dy = ev.rawY - downRawY
-                if (!dragging && hypot(dx, dy) > DRAG_SLOP_PX) dragging = true
+                if (!dragging && hypot(dx, dy) > DRAG_SLOP_PX) {
+                    dragging = true
+                    // 拖拽挣扎：播一次 Interact（被拎起来的反应）
+                    enqueueAnim("Interact", PRIO_USER, null, 1.2, false, null)
+                }
                 if (dragging) {
                     val dm = resources.displayMetrics
                     params.x = (downParamX + dx).toInt().coerceIn(0, (dm.widthPixels - 48).coerceAtLeast(0))
                     params.y = (downParamY + dy).toInt().coerceIn(0, (dm.heightPixels - 48).coerceAtLeast(0))
+                    // 挣扎倾斜：随手势水平方向摆动身体（低通滤波避免抖动）
+                    val instVx = ev.rawX - lastMoveRawX
+                    ivPet?.let { img ->
+                        img.pivotX = img.width / 2f
+                        img.pivotY = img.height / 2f
+                        val target = (instVx * 1.5f).coerceIn(-DRAG_TILT_MAX, DRAG_TILT_MAX)
+                        img.rotation = img.rotation * 0.6f + target * 0.4f
+                    }
                     runCatching { wm?.updateViewLayout(view, params) }
+                    // 记录速度采样（限窗口大小，防止长拖把内存吃穿）
+                    moveSamples.add(floatArrayOf(ev.rawX, ev.rawY, System.currentTimeMillis()))
+                    if (moveSamples.size > 32) moveSamples.removeFirst()
                 }
+                lastMoveRawX = ev.rawX
             }
             MotionEvent.ACTION_UP -> {
                 val now = System.currentTimeMillis()
                 val held = now - downTime
                 wsClient?.reportTouch(ev.rawX, ev.rawY, MotionEvent.ACTION_UP, held)
                 if (dragging) {
-                    saveTransform()
-                    wsClient?.reportTransform()
+                    // 回正挣扎倾斜
+                    ivPet?.animate()?.rotation(0f)?.setDuration(120L)?.start()
+                    val v = flingVelocity()
+                    val speed = hypot(v[0], v[1])
+                    if (speed >= PHYS_MIN_THROW) {
+                        PetLog.i(TAG, "抛掷起飞 vx=%.2f vy=%.2f px/ms".format(v[0], v[1]))
+                        startFlight(v[0], v[1])
+                    } else {
+                        // 原地放下
+                        saveTransform()
+                        wsClient?.reportTransform()
+                    }
                     lastUpTime = 0L
                 } else if (held >= LONG_PRESS_MS) {
                     // 长按切皮肤：自己判时长，不用 setOnLongClickListener（会吞掉 MOVE 事件）
@@ -360,7 +427,7 @@ class PetOverlayService : Service() {
                         if (chatVisible) hideChatInput() else showChatInput()
                     } else {
                         lastUpTime = now
-                        playAnimation("Interact")
+                        handleBodyPartTap()
                     }
                 } else {
                     lastUpTime = 0L
@@ -370,6 +437,113 @@ class PetOverlayService : Service() {
             MotionEvent.ACTION_CANCEL -> { dragging = false; lastUpTime = 0L }
         }
         return true
+    }
+
+    /**
+     * 部位交互：按触点在身体上的相对高度分区。
+     * 触点是 raw 坐标，悬浮窗 gravity=TOP|START，params.x/y 即视图在屏幕上的位置。
+     * 头（上 1/3）→ Interact 摸头；脚（下 1/4）→ Special（无则 Interact）；身体 → Sit。
+     */
+    private fun handleBodyPartTap() {
+        val params = overlayParams ?: return
+        val h = rootView?.height ?: 0
+        if (h <= 0) { playAnimation("Interact"); return }
+        val relY = (downRawY - params.y) / h
+        when {
+            relY < 0.34f -> {
+                PetLog.i(TAG, "部位交互: 摸头")
+                playAnimation("Interact")
+            }
+            relY > 0.75f -> {
+                PetLog.i(TAG, "部位交互: 戳脚")
+                playAnimation("Special")
+            }
+            else -> {
+                PetLog.i(TAG, "部位交互: 点身体")
+                playAnimation("Sit")
+            }
+        }
+    }
+
+    /** 取最近 FLING_WINDOW_MS 内的手势平均速度 (px/ms)。超出窗口的旧采样剔除。 */
+    private fun flingVelocity(): FloatArray {
+        val now = System.currentTimeMillis()
+        while (moveSamples.isNotEmpty() && now - moveSamples.first()[2] > FLING_WINDOW_MS + 40L) {
+            moveSamples.removeFirst()
+        }
+        if (moveSamples.size < 2) return floatArrayOf(0f, 0f)
+        val first = moveSamples.first()
+        val last = moveSamples.last()
+        val dt = (last[2] - first[2]).toLong().coerceAtLeast(1L)
+        return floatArrayOf(
+            ((last[0] - first[0]) / dt).coerceIn(-PHYS_V_MAX, PHYS_V_MAX),
+            ((last[1] - first[1]) / dt).coerceIn(-PHYS_V_MAX, PHYS_V_MAX)
+        )
+    }
+
+    /**
+     * 抛掷飞行：重力 + 空气阻尼 + 反弹的物理模拟，16ms 一帧驱动悬浮窗位置。
+     * 落地（垂直速度衰减到阈值）后播受击动作并保存位置。
+     */
+    private fun startFlight(vx0: Float, vy0: Float) {
+        val view = rootView ?: return
+        val params = overlayParams ?: return
+        isFlying = true
+        // 空中动作：Move（角色没有专用下落动画，用移动动作 + 速度 1.4 加快体现慌张）
+        enqueueAnim("Move", PRIO_USER, null, 1.4, true, null)
+        var vx = vx0
+        var vy = vy0
+        var lastT = System.currentTimeMillis()
+        val dm = resources.displayMetrics
+        val stepper = object : Runnable {
+            override fun run() {
+                if (!isFlying || rootView == null) { isFlying = false; return }
+                val now = System.currentTimeMillis()
+                // dt 收敛到 [4,64]ms：掉帧时防止速度爆炸，快速帧时防止爬行
+                val dt = (now - lastT).coerceIn(4L, 64L).toFloat()
+                lastT = now
+                vy += PHYS_GRAVITY * dt
+                vx *= PHYS_AIR_DRAG
+                params.x += (vx * dt).toInt()
+                params.y += (vy * dt).toInt()
+
+                // 侧壁反弹
+                val maxX = (dm.widthPixels - 48).coerceAtLeast(0)
+                if (params.x < 0) { params.x = 0; vx = -vx * PHYS_BOUNCE_X }
+                else if (params.x > maxX) { params.x = maxX; vx = -vx * PHYS_BOUNCE_X }
+
+                // 地板弹跳
+                val sizeH = (ivPet?.height ?: 48).coerceAtLeast(48)
+                val floorY = (dm.heightPixels - sizeH).coerceAtLeast(0)
+                if (params.y >= floorY) {
+                    params.y = floorY
+                    if (abs(vy) < PHYS_STOP_VY) { land(); return }
+                    vy = -vy * PHYS_BOUNCE_Y
+                    vx *= PHYS_BOUNCE_X
+                    PetLog.i(TAG, "弹跳 vy=%.2f".format(vy))
+                }
+
+                // 飞行姿态：按水平速度倾斜（pivot 必须每次重设中心，动画切换会被归零到左上角）
+                ivPet?.let { img ->
+                    img.pivotX = img.width / 2f
+                    img.pivotY = img.height / 2f
+                    img.rotation = (vx * 10f).coerceIn(-FLIGHT_TILT_MAX, FLIGHT_TILT_MAX)
+                }
+                runCatching { wm?.updateViewLayout(view, params) }
+                mainHandler.postDelayed(this, PHYS_TICK_MS)
+            }
+        }
+        mainHandler.post(stepper)
+    }
+
+    /** 落地：回正姿态、保存位置、播受击小动作（ONE_SHOT 机制自动回 Relax） */
+    private fun land() {
+        isFlying = false
+        ivPet?.rotation = 0f
+        saveTransform()
+        wsClient?.reportTransform()
+        PetLog.i(TAG, "落地 x=${overlayParams?.x} y=${overlayParams?.y}")
+        enqueueAnim("Interact", PRIO_WALK_ARRIVE, null, 1.0, false, null)
     }
 
     /**
@@ -594,7 +768,7 @@ class PetOverlayService : Service() {
         mainHandler.post {
             val view = rootView
             val params = overlayParams
-            if (view == null || params == null || isWalking) { onArrived(false); return@post }
+            if (view == null || params == null || isWalking || isFlying || dragging) { onArrived(false); return@post }
             isWalking = true
             val dm = resources.displayMetrics
             val tx = targetX.coerceIn(0, (dm.widthPixels - 48).coerceAtLeast(0))
@@ -650,7 +824,7 @@ class PetOverlayService : Service() {
         val loop = object : Runnable {
             override fun run() {
                 try {
-                    if (behaviorEnabled && !isWalking && !chatVisible &&
+                    if (behaviorEnabled && !isWalking && !isFlying && !dragging && !chatVisible &&
                         rootView?.visibility == View.VISIBLE
                     ) {
                         when ((0..99).random()) {
