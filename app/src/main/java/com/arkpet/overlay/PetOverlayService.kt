@@ -797,7 +797,9 @@ class PetOverlayService : Service() {
             val padH = (12 * dm.density).toInt()
             val padV = (7 * dm.density).toInt()
             val tv = TextView(this@PetOverlayService).apply {
-                text = msg
+                // 注意不能写 text = msg：方法参数名 text 会遮蔽 TextView.text 属性，
+                // 编译器把赋值目标解析成 val 参数 -> Val cannot be reassigned
+                setText(msg)
                 textSize = 14f
                 setTextColor(0xFF2B2B2B.toInt())
                 background = GradientDrawable().apply {
