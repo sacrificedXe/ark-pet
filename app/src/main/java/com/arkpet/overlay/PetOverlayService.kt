@@ -369,7 +369,8 @@ class PetOverlayService : Service() {
                 }
                 lastMoveRawX = ev.rawX
                 moveSamples.clear()
-                moveSamples.add(floatArrayOf(ev.rawX, ev.rawY, System.currentTimeMillis()))
+                // 时间存相对按下的毫秒数：绝对时间戳(1.7e12)超出 Float 精度会失真
+                moveSamples.add(floatArrayOf(ev.rawX, ev.rawY, 0f))
                 wsClient?.reportTouch(ev.rawX, ev.rawY, MotionEvent.ACTION_DOWN, 0)
             }
             MotionEvent.ACTION_MOVE -> {
@@ -394,7 +395,7 @@ class PetOverlayService : Service() {
                     }
                     runCatching { wm?.updateViewLayout(view, params) }
                     // 记录速度采样（限窗口大小，防止长拖把内存吃穿）
-                    moveSamples.add(floatArrayOf(ev.rawX, ev.rawY, System.currentTimeMillis()))
+                    moveSamples.add(floatArrayOf(ev.rawX, ev.rawY, (System.currentTimeMillis() - downTime).toFloat()))
                     if (moveSamples.size > 32) moveSamples.removeFirst()
                 }
                 lastMoveRawX = ev.rawX
@@ -467,14 +468,15 @@ class PetOverlayService : Service() {
 
     /** 取最近 FLING_WINDOW_MS 内的手势平均速度 (px/ms)。超出窗口的旧采样剔除。 */
     private fun flingVelocity(): FloatArray {
-        val now = System.currentTimeMillis()
-        while (moveSamples.isNotEmpty() && now - moveSamples.first()[2] > FLING_WINDOW_MS + 40L) {
+        // 采样时间戳是相对 downTime 的毫秒数（Float），此处换算同一基准
+        val nowEl = (System.currentTimeMillis() - downTime).toFloat()
+        while (moveSamples.isNotEmpty() && nowEl - moveSamples.first()[2] > (FLING_WINDOW_MS + 40L).toFloat()) {
             moveSamples.removeFirst()
         }
         if (moveSamples.size < 2) return floatArrayOf(0f, 0f)
         val first = moveSamples.first()
         val last = moveSamples.last()
-        val dt = (last[2] - first[2]).toLong().coerceAtLeast(1L)
+        val dt = (last[2] - first[2]).coerceAtLeast(1f)
         return floatArrayOf(
             ((last[0] - first[0]) / dt).coerceIn(-PHYS_V_MAX, PHYS_V_MAX),
             ((last[1] - first[1]) / dt).coerceIn(-PHYS_V_MAX, PHYS_V_MAX)
