@@ -16,7 +16,7 @@ Android 9.0+ 悬浮窗桌宠，明日方舟基建小人动画（云迹等皮肤�
 推送到 `main` 分支后由 GitHub Actions 自动编译 Debug APK：
 
 - 工作流：`.github/workflows/build-apk.yml`
-- 产物：`app/build/outputs/apk/debug/arknights-pet-debug.apk`（Artifact：`arknights-pet-debug-apk`）
+- 产物：`dist/arknights-pet-debug.apk`（CI 将默认 `app-debug.apk` 复制重命名；Artifact：`arknights-pet-debug-apk`）
 
 ## 本地构建
 

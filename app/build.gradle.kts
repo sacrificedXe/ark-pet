@@ -6,8 +6,6 @@ plugins {
 android {
     namespace = "com.arkpet"
     compileSdk = 34
-    // 产物统一命名 arknights-pet（推送到 GitHub 云编译后 APK 即为此名）
-    archivesName = "arknights-pet"
 
     defaultConfig {
         applicationId = "com.arkpet"
