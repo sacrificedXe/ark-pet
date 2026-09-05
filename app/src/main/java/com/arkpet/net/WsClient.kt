@@ -364,6 +364,16 @@ class WsClient(private val ctx: Context, private val serverUrl: String) {
         sendSense("animation", JSONObject().put("anim", anim))
     }
 
+    /**
+     * 部位交互上报（v0.5.1）：head / body / feet。
+     * 服务端（AstroBot）可据此触发 LLM 生成台词，经 pet.say 下发，
+     * 客户端收到后气泡直接被新台词替换 —— 本地台词只是离线兜底。
+     */
+    fun reportInteract(part: String) = sendSense(
+        "interact",
+        JSONObject().put("part", part).put("anim", currentAnim)
+    )
+
     fun reportBattery(level: Int) {
         batteryLevel = level
         sendSense("battery", JSONObject().put("level", level))

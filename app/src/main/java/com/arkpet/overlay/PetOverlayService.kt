@@ -11,6 +11,7 @@ import android.graphics.PixelFormat
 import android.graphics.drawable.Animatable2
 import android.graphics.drawable.AnimatedImageDrawable
 import android.graphics.drawable.Drawable
+import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.os.Handler
 import android.os.IBinder
@@ -28,6 +29,7 @@ import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.ImageButton
 import android.widget.ImageView
+import android.widget.TextView
 import android.widget.Toast
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequest
@@ -75,6 +77,13 @@ import kotlin.math.hypot
  *     飞行中身体按水平速度倾斜；飞行可被新的 ACTION_DOWN 打断（空中抓取）。
  * 11. 部位交互：单击按触点在身体上的相对位置分区（头/身/脚）给出不同动作。
  * 12. 飞行/拖拽期间自主行为与 walkTo 暂停，避免动画与位移互相打架。
+ *
+ * v0.5.1 新增（点击互动）：
+ * 13. 真气泡：showBubble 从 Toast 升级为桌宠头顶的独立悬浮窗（圆角背景、
+ *     自动消失、位置跟随桌宠、FLAG_NOT_TOUCHABLE 不挡操作）。
+ * 14. 点击互动：部位交互带随机动画 + 随机台词（本地台词兜底，不依赖服务器），
+ *     同时上报 interact 事件给 AstroBot —— LLM 可通过 pet.say 下发动态台词
+ *     覆盖本地气泡，实现"AI 接话"。
  */
 class PetOverlayService : Service() {
 
@@ -107,6 +116,24 @@ class PetOverlayService : Service() {
         private const val FLIGHT_TILT_MAX = 30f   // 飞行倾斜最大角度
         // 一次性动作：播完回 Relax，不能无限循环
         private val ONE_SHOT_ANIMS = setOf("Interact", "Special")
+
+        // ---------------- 气泡与台词 ----------------
+        // 气泡基础停留 3s，每个字再加 60ms，长句多停一会
+        private const val BUBBLE_BASE_MS = 3000L
+        private const val BUBBLE_MS_PER_CHAR = 60L
+        // 本地兜底台词：不连服务器也要有回应感。服务器在线时 AstroBot 可用 pet.say 覆盖
+        private val HEAD_LINES = listOf(
+            "咦？为什么摸我的头", "被摸头……嗯，感觉还不赖", "头发要被你弄乱啦",
+            "哼，就允许你摸一下下", "嘿嘿，再摸一下吧", "摸头杀？我可不会因此开心……才怪"
+        )
+        private val BODY_LINES = listOf(
+            "戳什么呀，痒！", "无聊的话就陪我聊聊天嘛", "想说话？双击我试试",
+            "工作再忙也要记得休息哦", "今天的你也辛苦啦", "肚子……不是用来戳的！"
+        )
+        private val FEET_LINES = listOf(
+            "别踩我脚！", "腿都站麻了……", "想带我出去散步吗？",
+            "再戳我就要跑掉了哦", "脚趾头会抗议的"
+        )
         // Drawable 缓存上限。单个 webp 解出来占几十 MB，缓存太多会 OOM
         private const val ANIM_CACHE_MAX = 4
 
@@ -170,6 +197,10 @@ class PetOverlayService : Service() {
 
     private var chatView: View? = null
     private var chatVisible = false
+
+    // ---------------- 气泡 ----------------
+    private var bubbleView: TextView? = null
+    private var bubbleHideRunnable: Runnable? = null
 
     private var overlayReady = false
 
@@ -246,6 +277,7 @@ class PetOverlayService : Service() {
         synchronized(animCache) { animCache.clear() }
         runCatching { decodeScope.shutdownNow() }
         runCatching { wsClient?.stop() }
+        hideBubbleInternal()
         hideChatInput()
         runCatching { rootView?.let { wm?.removeView(it) } }
         rootView = null
@@ -443,27 +475,33 @@ class PetOverlayService : Service() {
     /**
      * 部位交互：按触点在身体上的相对高度分区。
      * 触点是 raw 坐标，悬浮窗 gravity=TOP|START，params.x/y 即视图在屏幕上的位置。
-     * 头（上 1/3）→ Interact 摸头；脚（下 1/4）→ Special（无则 Interact）；身体 → Sit。
+     * 头（上 1/3）→ 摸头；脚（下 1/4）→ 戳脚；身体 → 戳身体。
+     * 每次随机挑一个动画 + 一句本地台词（避免连点千篇一律），
+     * 并上报 interact 事件：AstroBot 收到后可用 pet.say 下发 AI 台词覆盖气泡。
      */
     private fun handleBodyPartTap() {
         val params = overlayParams ?: return
         val h = rootView?.height ?: 0
         if (h <= 0) { playAnimation("Interact"); return }
         val relY = (downRawY - params.y) / h
+        val part: String
+        val anims: List<String>
+        val lines: List<String>
         when {
             relY < 0.34f -> {
-                PetLog.i(TAG, "部位交互: 摸头")
-                playAnimation("Interact")
+                part = "head"; anims = listOf("Interact", "Special"); lines = HEAD_LINES
             }
             relY > 0.75f -> {
-                PetLog.i(TAG, "部位交互: 戳脚")
-                playAnimation("Special")
+                part = "feet"; anims = listOf("Special", "Move"); lines = FEET_LINES
             }
             else -> {
-                PetLog.i(TAG, "部位交互: 点身体")
-                playAnimation("Sit")
+                part = "body"; anims = listOf("Sit", "Relax"); lines = BODY_LINES
             }
         }
+        PetLog.i(TAG, "部位交互: $part")
+        playAnimation(anims.random())
+        showBubble(lines.random())
+        wsClient?.reportInteract(part)
     }
 
     /** 取最近 FLING_WINDOW_MS 内的手势平均速度 (px/ms)。超出窗口的旧采样剔除。 */
@@ -743,7 +781,73 @@ class PetOverlayService : Service() {
         PetLog.i(TAG, "自主行为: $v")
     }
 
-    fun showBubble(text: String) = mainHandler.post { toast(text.take(80)) }
+    /**
+     * 桌宠头顶气泡：独立悬浮窗（TYPE_APPLICATION_OVERLAY），圆角背景，
+     * FLAG_NOT_TOUCHABLE 不挡下层操作，按文本长度自动控制停留时长。
+     * 失败时降级为 Toast（老行为），保证"说了话"永远成立。
+     */
+    fun showBubble(text: String) = mainHandler.post {
+        val msg = text.trim().take(60)
+        if (msg.isEmpty()) return@post
+        hideBubbleInternal()
+        val w = wm ?: run { toast(msg); return@post }
+        val params = overlayParams ?: run { toast(msg); return@post }
+        try {
+            val dm = resources.displayMetrics
+            val padH = (12 * dm.density).toInt()
+            val padV = (7 * dm.density).toInt()
+            val tv = TextView(this@PetOverlayService).apply {
+                text = msg
+                textSize = 14f
+                setTextColor(0xFF2B2B2B.toInt())
+                background = GradientDrawable().apply {
+                    setColor(0xF2FFFFFF.toInt())
+                    cornerRadius = 16 * dm.density
+                    setStroke((1 * dm.density).toInt(), 0x33888888)
+                }
+                setPadding(padH, padV, padH, padV)
+                maxWidth = (dm.widthPixels * 0.72f).toInt()
+            }
+            val type = if (Build.VERSION.SDK_INT >= 26) WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+            else @Suppress("DEPRECATION") WindowManager.LayoutParams.TYPE_PHONE
+            val lp = WindowManager.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                type,
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                    WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE,
+                PixelFormat.TRANSLUCENT
+            ).apply {
+                gravity = Gravity.TOP or Gravity.START
+                // 气泡锚在桌宠头顶：水平居中于桌宠（估宽 120dp，addView 前拿不到实测宽）
+                val petCx = params.x + (ivPet?.width ?: 0) / 2
+                x = (petCx - 60 * dm.density).toInt().coerceIn(0, (dm.widthPixels - 48).coerceAtLeast(0))
+                y = (params.y - 46 * dm.density).toInt().coerceAtLeast(0)
+            }
+            w.addView(tv, lp)
+            bubbleView = tv
+            val hide = Runnable { hideBubbleInternal() }
+            bubbleHideRunnable = hide
+            mainHandler.postDelayed(hide, BUBBLE_BASE_MS + msg.length * BUBBLE_MS_PER_CHAR)
+            PetLog.i(TAG, "气泡: ${msg.take(24)}")
+        } catch (e: Exception) {
+            PetLog.e(TAG, "气泡显示失败，降级 Toast", e)
+            toast(msg)
+        }
+    }
+
+    /** 隐藏并移除气泡（外部与内部统一入口，重复调用安全） */
+    fun hideBubble() {
+        if (Looper.myLooper() == Looper.getMainLooper()) hideBubbleInternal()
+        else mainHandler.post { hideBubbleInternal() }
+    }
+
+    private fun hideBubbleInternal() {
+        bubbleHideRunnable?.let { mainHandler.removeCallbacks(it) }
+        bubbleHideRunnable = null
+        bubbleView?.let { v -> runCatching { wm?.removeView(v) } }
+        bubbleView = null
+    }
 
     fun applyTransform(t: PetTransform) = mainHandler.post {
         val view = rootView ?: return@post
